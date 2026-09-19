@@ -18,7 +18,6 @@ import type {
   AgenticCancelledEvent,
   AgenticCompleteEvent,
   AgenticErrorEvent,
-  AgenticFlowUpdateEvent,
   AgenticProgressEvent,
   AgenticSSEEvent,
   AgenticTokenEvent,
@@ -211,7 +210,7 @@ describe("event dispatch", () => {
     // stuck forever + ambiguous partial canvas.
     const progressOnly: AgenticSSEEvent = {
       event: "progress",
-      step: "building_flow",
+      step: "generating_component",
     } as unknown as AgenticSSEEvent;
     mockFetch.mockResolvedValue(createSSEResponse(progressOnly));
 
@@ -240,30 +239,29 @@ describe("event dispatch", () => {
     expect(onCancelled).toHaveBeenCalledWith(cancelledEvent);
   });
 
-  it("should dispatch onFlowUpdate for flow_update events with action propose_plan", async () => {
-    // Plan proposal arrives as a flow_update event carrying markdown.
-    // The SSE parser is generic — it forwards by event.event, not by action —
-    // so the test fixes the contract that "propose_plan" is a valid action
-    // and that the typed payload reaches onFlowUpdate intact.
-    const planEvent: AgenticFlowUpdateEvent = {
+  it("ignores a legacy flow_update event", async () => {
+    // An older backend can still send canvas events the panel no longer
+    // shows. They must not end the stream or surface as an error.
+    const legacyEvent = {
       event: "flow_update",
-      action: "propose_plan",
-      markdown: "## Plan\n\n- Add ChatInput\n- Add Agent\n- Add ChatOutput",
+      action: "set_flow",
+      flow: { data: { nodes: [], edges: [] } },
+    } as unknown as AgenticSSEEvent;
+    const completeEvent: AgenticCompleteEvent = {
+      event: "complete",
+      data: { result: "done" },
     };
-    mockFetch.mockResolvedValue(
-      createSSEResponse(planEvent, {
-        event: "complete",
-        data: { result: "", validated: true },
-      }),
-    );
+    mockFetch.mockResolvedValue(createSSEResponse(legacyEvent, completeEvent));
 
-    const onFlowUpdate = jest.fn();
+    const onError = jest.fn();
+    const onComplete = jest.fn();
     await postAssistStream(
       { flow_id: "f1", input_value: "" },
-      { onFlowUpdate },
+      { onError, onComplete },
     );
 
-    expect(onFlowUpdate).toHaveBeenCalledWith(planEvent);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalledWith(completeEvent);
   });
 
   it("should stop processing after terminal event", async () => {
@@ -384,6 +382,46 @@ describe("error responses", () => {
     );
   });
 
+  it("should surface the detail of a refused component turn", async () => {
+    mockFetch.mockResolvedValue(
+      createMockResponse(
+        403,
+        [],
+        JSON.stringify({
+          detail: "Custom components are disabled on this server.",
+        }),
+      ),
+    );
+
+    const onError = jest.fn();
+    await postAssistStream(
+      { flow_id: "f1", input_value: "", mode: "build" },
+      { onError },
+    );
+
+    expect(onError).toHaveBeenCalledWith({
+      event: "error",
+      message: "Custom components are disabled on this server.",
+    });
+  });
+
+  it("should read a structured detail instead of showing an object", async () => {
+    mockFetch.mockResolvedValue(
+      createMockResponse(
+        422,
+        [],
+        JSON.stringify({ detail: [{ msg: "Field required" }] }),
+      ),
+    );
+
+    const onError = jest.fn();
+    await postAssistStream({ flow_id: "f1", input_value: "" }, { onError });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Field required" }),
+    );
+  });
+
   it("should call onError with text for non-JSON error", async () => {
     mockFetch.mockResolvedValue(
       createMockResponse(500, [], "Internal Server Error"),
@@ -447,27 +485,6 @@ describe("bugs and edge cases", () => {
       );
 
       expect(onComplete).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  it.failing(
-    "BUG: should reject events with wrong shape instead of casting",
-    async () => {
-      // L22: `JSON.parse(data) as AgenticSSEEvent` — no runtime validation.
-      // A well-typed object that doesn't match any event type is accepted silently.
-      const fakeEvent = { event: "unknown_type", foo: "bar" };
-      const text = `data: ${JSON.stringify(fakeEvent)}\n\ndata: ${JSON.stringify({ event: "complete", data: { result: "", validated: true } })}\n\n`;
-      mockFetch.mockResolvedValue(createMockResponse(200, [encode(text)]));
-
-      const onError = jest.fn();
-      await postAssistStream({ flow_id: "f1", input_value: "" }, { onError });
-
-      // Should have reported an error for the unknown event type
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining("unknown"),
-        }),
-      );
     },
   );
 

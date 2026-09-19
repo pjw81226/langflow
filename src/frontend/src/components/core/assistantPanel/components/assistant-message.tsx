@@ -6,7 +6,6 @@ import { CustomProfileIcon } from "@/customization/components/custom-profile-ico
 import { cn } from "@/utils/utils";
 import type { AssistantMessage } from "../assistant-panel.types";
 import { getRandomThinkingMessage } from "../helpers/messages";
-import { AssistantBuildTasks } from "./assistant-build-tasks";
 import { AssistantMessageBody } from "./assistant-message-body";
 import { AssistantModelNotice } from "./assistant-model-notice";
 import { AssistantTestResult } from "./assistant-test-result";
@@ -14,26 +13,7 @@ import { AssistantTestResult } from "./assistant-test-result";
 interface AssistantMessageItemProps {
   message: AssistantMessage;
   onApprove?: (messageId: string) => void;
-  onUpdateFlowAction?: (
-    messageId: string,
-    actionId: string,
-    status: "applied" | "dismissed",
-  ) => void;
-  onApplyFlowProposal?: (messageId: string, mode?: "replace" | "add") => void;
-  onRevertFlowProposal?: (messageId: string) => void;
-  onRevertAutoApplied?: (messageId: string) => void;
-  onDismissFlowProposal?: (messageId: string) => void;
-  onApprovePlan?: (messageId: string) => void;
-  onDismissPlan?: (messageId: string) => void;
-  /** Fires when the user clicks Reset on a refining plan card. */
-  onResetPlan?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
-  /**
-   * When true, the message renders past the validation/document Continue
-   * gate immediately — no manual user click. Driven by the hook's
-   * persistent skip-all preference.
-   */
-  skipApprovalGate?: boolean;
   /**
    * Persists the user's acknowledgement of the validation gate (Continue
    * click or 30s auto-dismiss) onto the message itself so panel
@@ -51,18 +31,11 @@ interface AssistantMessageItemProps {
 // Steps where AssistantLoadingState replaces the simple thinking dots.
 const RICH_LOADING_STEPS = [
   "generating_component",
-  "generating_plan",
-  "generating_flow",
-  "orchestrating",
   "extracting_code",
   "validating",
   "validation_failed",
   "retrying",
   "validated",
-  "searching_components",
-  "building_flow",
-  "flow_built",
-  "flow_build_failed",
   "verifying_flow",
 ];
 
@@ -88,16 +61,7 @@ function ThinkingIndicator({ message }: { message: string }) {
 export function AssistantMessageItem({
   message,
   onApprove,
-  onUpdateFlowAction,
-  onApplyFlowProposal,
-  onRevertFlowProposal,
-  onRevertAutoApplied,
-  onDismissFlowProposal,
-  onApprovePlan,
-  onDismissPlan,
-  onResetPlan,
   onRetry,
-  skipApprovalGate = false,
   onAcknowledgeValidation,
   onTestFlow,
   onOpenPlayground,
@@ -109,8 +73,7 @@ export function AssistantMessageItem({
   // Randomized once per message.
   const thinkingMessage = useMemo(() => getRandomThinkingMessage(), []);
 
-  // Memoized misclassified-intent detector (regex per token was hot); must stay
-  // above the `message.hidden` early return to keep the hook count stable.
+  // Memoized misclassified-intent detector (regex per token was hot).
   const contentLooksLikeComponentCode = useMemo(
     () =>
       isStreaming &&
@@ -119,31 +82,17 @@ export function AssistantMessageItem({
     [isStreaming, message.content],
   );
 
-  // Skip-all hides the propose_plan preamble entirely; guard AFTER hooks
-  // so the hook count stays stable across renders (Rules of Hooks).
-  if (message.hidden) {
-    return null;
-  }
-  // True when the rich loading state (component or flow build) should render
-  // instead of the simple thinking indicator.
-  const showsRichLoadingState =
+  // True when the rich loading state (component generation or a test run)
+  // should render instead of the simple thinking indicator.
+  const showsRichLoadingState = Boolean(
     (message.progress && RICH_LOADING_STEPS.includes(message.progress.step)) ||
-    contentLooksLikeComponentCode;
+      contentLooksLikeComponentCode,
+  );
 
-  // Suppress the "Working on the flow…" build spinner while a plan is still
-  // pending — the agent is only planning, no build is happening yet.
-  const planPending =
-    message.planProposalStatus === "pending" && !!message.pendingPlanProposal;
-  const inProgressTask = planPending ? undefined : message.inProgressTask;
+  const isGeneratingCode = isStreaming && showsRichLoadingState;
 
-  // One build indicator only: when the "Working on the flow…" row shows, drop
-  // the redundant rich "Building the flow…" loader so exactly one is visible.
-  const isGeneratingCode =
-    isStreaming && Boolean(showsRichLoadingState) && !inProgressTask;
-
-  // Simple thinking: streaming with no content, rich state, or build row yet.
-  const isSimpleThinking =
-    isStreaming && !isGeneratingCode && !message.content && !inProgressTask;
+  // Simple thinking: streaming with no content and no rich state yet.
+  const isSimpleThinking = isStreaming && !isGeneratingCode && !message.content;
 
   if (isSimpleThinking && !isUser) {
     return (
@@ -204,31 +153,11 @@ export function AssistantMessageItem({
                 <AssistantModelNotice notices={message.notices} />
               )}
           </div>
-          {/* While a plan awaits the user the agent is only planning, so a
-              build spinner must not flash before/beside the plan card. */}
-          {!isUser &&
-            ((message.buildTasks && message.buildTasks.length > 0) ||
-              inProgressTask) && (
-              <AssistantBuildTasks
-                tasks={message.buildTasks ?? []}
-                inProgressTask={inProgressTask}
-                hasError={message.status === "error"}
-              />
-            )}
           <div className="mt-3 overflow-hidden">
             <AssistantMessageBody
               message={message}
               isGeneratingCode={isGeneratingCode}
-              skipApprovalGate={skipApprovalGate}
               onApprove={onApprove}
-              onUpdateFlowAction={onUpdateFlowAction}
-              onApplyFlowProposal={onApplyFlowProposal}
-              onRevertFlowProposal={onRevertFlowProposal}
-              onRevertAutoApplied={onRevertAutoApplied}
-              onDismissFlowProposal={onDismissFlowProposal}
-              onApprovePlan={onApprovePlan}
-              onDismissPlan={onDismissPlan}
-              onResetPlan={onResetPlan}
               onRetry={onRetry}
               onAcknowledgeValidation={onAcknowledgeValidation}
             />

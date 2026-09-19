@@ -27,7 +27,7 @@ export type AssistantManagerStoreType = {
   assistantSidebarOpen: boolean;
   setAssistantSidebarOpen: (AssistantSideBarOpen: boolean) => void;
   /** The panel is docked beside the canvas, so "get it out of the way" actions
-   * (Escape, minimize after applying a flow) must leave it open. */
+   * (Escape) must leave it open. */
   assistantDocked: boolean;
   setAssistantDocked: (docked: boolean) => void;
 

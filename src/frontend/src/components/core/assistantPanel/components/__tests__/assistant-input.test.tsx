@@ -143,21 +143,6 @@ describe("AssistantInput", () => {
         screen.getByPlaceholderText("Ask how to use Langflow..."),
       ).toBeInTheDocument();
     });
-
-    it("should_not_show_the_plan_refinement_cue_in_ask_mode", () => {
-      render(
-        <AssistantInput
-          {...defaultProps}
-          mode="ask"
-          onModeChange={jest.fn()}
-          isRefiningPlan
-        />,
-      );
-
-      expect(
-        screen.getByPlaceholderText("Ask how to use Langflow..."),
-      ).toBeInTheDocument();
-    });
   });
 
   describe("test flow button", () => {
@@ -287,39 +272,6 @@ describe("AssistantInput", () => {
       ).toBeInTheDocument();
     });
 
-    it("should show 'Generating flow...' during 'generating_flow' step", () => {
-      // Regression: 'generating_flow' must behave like the other generating
-      // steps (no rotating placeholder, static intent-specific text) so the
-      // user sees a stable label instead of cycling random messages.
-      render(
-        <AssistantInput
-          {...defaultProps}
-          isProcessing={true}
-          currentStep="generating_flow"
-        />,
-      );
-
-      expect(
-        screen.getByPlaceholderText("Generating flow..."),
-      ).toBeInTheDocument();
-    });
-
-    it("should show 'Orchestrating...' during 'orchestrating' step (compound request)", () => {
-      // A multi-ask prompt runs the single agent loop; the user must see a
-      // real indicator, not a generic rotating "Thinking..." placeholder.
-      render(
-        <AssistantInput
-          {...defaultProps}
-          isProcessing={true}
-          currentStep="orchestrating"
-        />,
-      );
-
-      expect(
-        screen.getByPlaceholderText("Orchestrating..."),
-      ).toBeInTheDocument();
-    });
-
     it("should show empty placeholder during post-generation steps", () => {
       render(
         <AssistantInput
@@ -331,34 +283,6 @@ describe("AssistantInput", () => {
 
       // Post-generation steps clear the native placeholder to show animated overlay
       expect(screen.getByRole("textbox")).toHaveAttribute("placeholder", "");
-    });
-
-    it("should show refining placeholder when isRefiningPlan is true and not processing", () => {
-      // When the user dismissed a plan and is composing the refinement, we
-      // override the idle placeholder with a directed cue so the input
-      // reads as "this is the box where I tell the agent what to change".
-      render(<AssistantInput {...defaultProps} isRefiningPlan={true} />);
-
-      expect(
-        screen.getByPlaceholderText("Tell me what to change…"),
-      ).toBeInTheDocument();
-    });
-
-    it("should not show refining placeholder while a generating step is active", () => {
-      // The generating-step placeholder takes precedence — refining only
-      // overrides the idle placeholder, not the in-progress UX.
-      render(
-        <AssistantInput
-          {...defaultProps}
-          isRefiningPlan={true}
-          isProcessing={true}
-          currentStep="generating_flow"
-        />,
-      );
-
-      expect(
-        screen.getByPlaceholderText("Generating flow..."),
-      ).toBeInTheDocument();
     });
   });
 

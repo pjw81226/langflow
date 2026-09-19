@@ -246,27 +246,6 @@ describe("AssistantMessageItem", () => {
       expect(screen.getByTestId("loading-state")).toBeInTheDocument();
     });
 
-    it("should show the rich loading state during the 'orchestrating' step (compound pipeline)", () => {
-      // A compound (component_then_flow) request must surface the rich
-      // "Orchestrating..." indicator, NOT the generic thinking dots.
-      const message = createMessage({
-        role: "assistant",
-        content: "",
-        status: "streaming",
-        progress: {
-          step: "orchestrating",
-          message: "Orchestrating...",
-          attempt: 0,
-          maxAttempts: 3,
-        },
-      });
-
-      render(<AssistantMessageItem message={message} />);
-
-      expect(screen.getByTestId("loading-state")).toBeInTheDocument();
-      expect(screen.queryByText("Thinking...")).toBeNull();
-    });
-
     it("should detect component code in streaming content with progress", () => {
       const message = createMessage({
         role: "assistant",
@@ -433,28 +412,10 @@ describe("AssistantMessageItem", () => {
     });
   });
 
-  describe("hidden flag", () => {
-    it("should_render_nothing_when_message_is_hidden", () => {
-      // Skip-all sets `hidden: true` on the propose_plan turn so its
-      // preamble doesn't pollute the chat. The renderer must opt out
-      // entirely — returning even an empty bubble would leave a gap.
-      const message = createMessage({
-        role: "assistant",
-        content: "I proposed a plan and am waiting.",
-        status: "complete",
-        hidden: true,
-      });
-
-      const { container } = render(<AssistantMessageItem message={message} />);
-
-      expect(container).toBeEmptyDOMElement();
-    });
-  });
-
-  describe("skipApprovalGate prop (skip-all mode)", () => {
-    it("should_render_component_result_immediately_when_skipApprovalGate_true_and_result_validated", () => {
-      // With the gate skipped, validationAnimationComplete starts true so
-      // the user sees the final component card without a Continue click.
+  describe("validation gate", () => {
+    it("should_render_component_result_immediately_once_the_gate_was_acknowledged", () => {
+      // A reopened panel must not bring back the Continue gate the user
+      // already passed.
       const message = createMessage({
         role: "assistant",
         status: "complete",
@@ -473,20 +434,18 @@ describe("AssistantMessageItem", () => {
           componentCode: "class X: pass",
           className: "X",
         },
+        validationAcknowledged: true,
       });
 
-      render(
-        <AssistantMessageItem message={message} skipApprovalGate={true} />,
-      );
+      render(<AssistantMessageItem message={message} />);
 
       expect(screen.getByTestId("component-result")).toBeInTheDocument();
       // The loading-state Continue gate must NOT be on screen.
       expect(screen.queryByTestId("loading-state")).not.toBeInTheDocument();
     });
 
-    it("should_keep_loading_state_when_skipApprovalGate_false_and_result_validated", () => {
-      // Regression baseline: without skip, the Continue gate stays mounted
-      // until the user clicks Continue.
+    it("should_keep_loading_state_until_the_gate_is_acknowledged", () => {
+      // The Continue gate stays mounted until the user clicks Continue.
       const message = createMessage({
         role: "assistant",
         status: "complete",
@@ -511,99 +470,6 @@ describe("AssistantMessageItem", () => {
 
       expect(screen.getByTestId("loading-state")).toBeInTheDocument();
       expect(screen.queryByTestId("component-result")).not.toBeInTheDocument();
-    });
-  });
-
-  // Bug: `if (message.hidden) return null` ran BEFORE useState/useMemo.
-  // Skip-all flips a rendered message to hidden, changing the hook count
-  // between renders — React: "Rendered fewer hooks than during the
-  // previous render", crashing the whole panel.
-  describe("hidden flag — hooks order (crash regression)", () => {
-    it("should_render_nothing_for_hidden_then_content_when_unhidden_without_crashing", () => {
-      const { container, rerender } = render(
-        <AssistantMessageItem
-          message={createMessage({
-            id: "msg-1",
-            content: "Working on the flow...",
-            status: "streaming",
-            hidden: true,
-          })}
-        />,
-      );
-      // Hidden: the guard still suppresses all output.
-      expect(container).toBeEmptyDOMElement();
-
-      expect(() =>
-        rerender(
-          <AssistantMessageItem
-            message={createMessage({
-              id: "msg-1",
-              content: "Working on the flow...",
-              status: "complete",
-            })}
-          />,
-        ),
-      ).not.toThrow();
-      // Unhidden on the SAME fiber: content renders (hooks stayed stable).
-      expect(screen.getByText("Working on the flow...")).toBeInTheDocument();
-    });
-  });
-
-  describe("in-progress build spinner suppression", () => {
-    it("should_render_in_progress_row_when_build_row_present_without_content", () => {
-      // A present inProgressTask must render its row (and not fall through to
-      // the thinking-dots early return) even before any content streams.
-      const message = createMessage({
-        role: "assistant",
-        content: "",
-        status: "streaming",
-        inProgressTask: { tool: "build_flow", receivedAt: Date.now() },
-      });
-
-      render(<AssistantMessageItem message={message} />);
-
-      expect(
-        screen.getByTestId("assistant-build-task-in-progress"),
-      ).toBeInTheDocument();
-    });
-
-    it("should_show_only_the_working_row_and_not_the_rich_loader_during_a_build", () => {
-      // Bug D: a build fires both a generating_flow progress (rich "Building
-      // the flow…" loader) and a build_flow tool_start ("Working on the flow…"
-      // row). Exactly one must show — the "Working on the flow…" row.
-      const message = createMessage({
-        role: "assistant",
-        content: "",
-        status: "streaming",
-        progress: { step: "generating_flow", attempt: 0, maxAttempts: 3 },
-        inProgressTask: { tool: "build_flow", receivedAt: Date.now() },
-      });
-
-      render(<AssistantMessageItem message={message} />);
-
-      expect(
-        screen.getByTestId("assistant-build-task-in-progress"),
-      ).toBeInTheDocument();
-      expect(screen.queryByTestId("loading-state")).toBeNull();
-    });
-
-    it("should_suppress_in_progress_row_while_a_plan_proposal_is_pending", () => {
-      // Regression: a phantom "Building flow" spinner flashed before/beside
-      // the plan card while the agent was still planning (no build yet).
-      const message = createMessage({
-        role: "assistant",
-        content: "Here is the plan",
-        status: "complete",
-        planProposalStatus: "pending",
-        pendingPlanProposal: { markdown: "## Plan" },
-        inProgressTask: { tool: "build_flow", receivedAt: Date.now() },
-      });
-
-      render(<AssistantMessageItem message={message} />);
-
-      expect(
-        screen.queryByTestId("assistant-build-task-in-progress"),
-      ).toBeNull();
     });
   });
 

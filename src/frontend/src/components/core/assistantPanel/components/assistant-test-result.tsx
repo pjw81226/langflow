@@ -1,10 +1,9 @@
 /**
  * Result card for a flow's test run.
  *
- * The backend test-runs a freshly built flow and runs one on request, but all
- * the panel used to show for it was a "⚠️ …" sentence inside the answer. This
- * card says what happened in the UI language: passed, failed (and where),
- * needs something only the user can supply, or not tested yet.
+ * "Test flow" has the backend run the canvas flow once. This card says what
+ * happened in the UI language: passed, failed (and where), needs something
+ * only the user can supply, or not tested yet.
  *
  * The headline and the explanation come from translation keys chosen by the
  * result's status and error kind. The server's own message is English and

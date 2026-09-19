@@ -108,7 +108,6 @@ describe("useGetConfig", () => {
       data: {
         ...baseConfig,
         assistant_default_model: "OpenAI:gpt-5.4",
-        assistant_auto_apply_default: true,
         assistant_dock_default: true,
       },
     });
@@ -120,14 +119,12 @@ describe("useGetConfig", () => {
 
     const state = useUtilityStore.getState();
     expect(state.assistantDefaultModel).toBe("OpenAI:gpt-5.4");
-    expect(state.assistantAutoApplyDefault).toBe(true);
     expect(state.assistantDockDefault).toBe(true);
   });
 
   it("keeps the built-in assistant behaviour for servers without those fields", async () => {
     useUtilityStore.setState({
       assistantDefaultModel: "OpenAI:gpt-5.4",
-      assistantAutoApplyDefault: true,
       assistantDockDefault: true,
     });
     mockApiGet.mockResolvedValue({ data: baseConfig });
@@ -139,7 +136,6 @@ describe("useGetConfig", () => {
 
     const state = useUtilityStore.getState();
     expect(state.assistantDefaultModel).toBe("");
-    expect(state.assistantAutoApplyDefault).toBe(false);
     expect(state.assistantDockDefault).toBe(false);
   });
 });

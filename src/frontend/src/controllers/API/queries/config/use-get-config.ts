@@ -54,7 +54,6 @@ export interface ConfigResponse extends BaseConfig {
   assistant_max_message_length: number;
   /** Absent on servers that predate the Assistant panel defaults. */
   assistant_default_model?: string;
-  assistant_auto_apply_default?: boolean;
   assistant_dock_default?: boolean;
   local_vector_store_available: boolean;
   /** Component types an administrator blocked. Authenticated callers only:
@@ -220,7 +219,6 @@ export const useGetConfig: useQueryFunctionType<
         );
         setAssistantDefaults({
           assistantDefaultModel: data.assistant_default_model ?? "",
-          assistantAutoApplyDefault: data.assistant_auto_apply_default ?? false,
           assistantDockDefault: data.assistant_dock_default ?? false,
         });
         setLocalVectorStoreAvailable(data.local_vector_store_available ?? true);

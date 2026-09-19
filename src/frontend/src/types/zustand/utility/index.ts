@@ -59,11 +59,9 @@ export type UtilityStoreType = {
   // applies only until the user makes their own choice in the panel.
   /** `Provider:model`, or "" when the deployment names none. */
   assistantDefaultModel: string;
-  assistantAutoApplyDefault: boolean;
   assistantDockDefault: boolean;
   setAssistantDefaults: (defaults: {
     assistantDefaultModel: string;
-    assistantAutoApplyDefault: boolean;
     assistantDockDefault: boolean;
   }) => void;
   // False on the production deployment profile, where local Chroma is refused.

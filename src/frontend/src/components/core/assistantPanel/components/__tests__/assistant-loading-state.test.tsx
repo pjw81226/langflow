@@ -277,4 +277,31 @@ describe("AssistantLoadingState", () => {
       expect(onComplete).not.toHaveBeenCalled();
     });
   });
+
+  describe("icon-only mode", () => {
+    it("should show the glyph and a label of its own while the flow test runs", () => {
+      render(
+        <AssistantLoadingState
+          progress={createProgress({
+            step: "verifying_flow",
+            // English from the server; the step has a translated label.
+            message: "Running the flow...",
+          })}
+        />,
+      );
+
+      expect(
+        screen.getByTestId("assistant-flow-loading-icon-mode"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Testing the flow...")).toBeInTheDocument();
+    });
+
+    it("should keep the card for component generation", () => {
+      render(<AssistantLoadingState progress={createProgress()} />);
+
+      expect(
+        screen.queryByTestId("assistant-flow-loading-icon-mode"),
+      ).toBeNull();
+    });
+  });
 });

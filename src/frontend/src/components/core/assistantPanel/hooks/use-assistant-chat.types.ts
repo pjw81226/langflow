@@ -5,6 +5,14 @@ import type {
   AssistantModel,
 } from "../assistant-panel.types";
 
+export interface AssistantSendOptions {
+  /** Panel mode of an agent turn. */
+  mode?: AssistantMode;
+  /** "test_flow": the backend runs the canvas flow once instead of starting
+   * an agent turn; the content is only the bubble's label. */
+  action?: "test_flow";
+}
+
 export interface UseAssistantChatReturn {
   messages: AssistantMessage[];
   sessionId: string;
@@ -13,52 +21,17 @@ export interface UseAssistantChatReturn {
   handleSend: (
     content: string,
     model: AssistantModel | null,
-    options?: {
-      silent?: boolean;
-      displayContent?: string;
-      mode?: AssistantMode;
-      action?: "test_flow";
-    },
+    options?: AssistantSendOptions,
   ) => Promise<void>;
   /** Saves the flow, then has the backend run it once and report the result. */
   handleTestFlow: (model: AssistantModel | null) => Promise<void>;
   handleApprove: (messageId: string, componentCode?: string) => Promise<void>;
-  handleUpdateFlowAction: (
-    messageId: string,
-    actionId: string,
-    status: "applied" | "dismissed",
-  ) => Promise<void>;
-  handleApplyFlowProposal: (
-    messageId: string,
-    mode?: "replace" | "add",
-  ) => void;
-  handleRevertFlowProposal: (messageId: string) => void;
-  /** Undo a flow that was applied without asking; it becomes a pending proposal. */
-  handleRevertAutoApplied: (messageId: string) => void;
-  handleDismissFlowProposal: (messageId: string) => void;
-  handleApprovePlan: (messageId: string) => Promise<void>;
-  handleDismissPlan: (messageId: string) => void;
-  handleResetPlan: (messageId: string) => void;
   /**
    * Mark the component validation gate as acknowledged on the message.
    * Persisted across remounts so panel close/reopen doesn't bring the
    * loading card back after the user already pressed Continue.
    */
   handleAcknowledgeValidation: (messageId: string) => void;
-  /**
-   * True while a previously-proposed plan has been dismissed by the user and
-   * is awaiting refinement. The UI uses this to swap the input placeholder
-   * and amber the plan card.
-   */
-  isRefiningPlan: boolean;
-  /**
-   * Persistent power-user preference: when true, every gate that would
-   * otherwise require an explicit Continue click auto-approves. Restored
-   * from localStorage on mount.
-   */
-  skipAll: boolean;
-  /** Flip the skipAll preference and persist the change. */
-  toggleSkipAll: () => void;
   handleRetry: (
     messageId: string,
     isModelEnabled: (model: AssistantModel) => boolean,

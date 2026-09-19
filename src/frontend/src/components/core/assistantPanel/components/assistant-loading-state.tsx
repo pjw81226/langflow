@@ -16,18 +16,10 @@ interface AssistantLoadingStateProps {
   onValidationComplete?: () => void;
 }
 
-// Flow-build steps that have no body content (no streaming code, no card).
-// For those, the bordered card looks like an "empty" loading box, so we swap
-// it for a minimal draw-on animation of the Langflow assistant glyph.
-const FLOW_BUILD_ICON_STEPS = new Set([
-  "searching_components",
-  "generating_plan",
-  "generating_flow",
-  "orchestrating",
-  "building_flow",
-  "flow_built",
-  "verifying_flow",
-]);
+// Steps that have no body content (no streaming code, no card). For those,
+// the bordered card looks like an "empty" loading box, so we swap it for a
+// minimal draw-on animation of the Langflow assistant glyph.
+const ICON_ONLY_STEPS = new Set(["verifying_flow"]);
 
 // SVG `d` of the three wavy strokes that form the Langflow assistant glyph,
 // in a 16x16 viewBox. Three sub-paths separated by `M` (moveto).
@@ -143,16 +135,16 @@ function AssistantLoadingStateComponent({
     }
   }, [streamingContent]);
 
-  // Minimal icon-only mode: flow-build steps with no body content. Swaps the
-  // bordered card (which would render essentially empty) for a draw-on Langflow
-  // glyph animation. Must come AFTER all hook calls to preserve hook order.
-  const isFlowBuildIconMode =
-    FLOW_BUILD_ICON_STEPS.has(progress.step) &&
+  // Minimal icon-only mode: steps with no body content. Swaps the bordered
+  // card (which would render essentially empty) for a draw-on Langflow glyph
+  // animation. Must come AFTER all hook calls to preserve hook order.
+  const isIconOnlyMode =
+    ICON_ONLY_STEPS.has(progress.step) &&
     !hasStreaming &&
     !finalCode &&
     !progress.error;
 
-  if (isFlowBuildIconMode) {
+  if (isIconOnlyMode) {
     return (
       <div
         data-testid="assistant-flow-loading-icon-mode"
@@ -172,9 +164,9 @@ function AssistantLoadingStateComponent({
   return (
     <div className="w-full max-w-[600px] py-1">
       {/* Header — status line, flat (no surrounding card). Uses the same
-          LangflowDrawingIcon (size 24) as the flow-build minimal mode so the
-          loading glyph is visually identical across component generation and
-          flow building. */}
+          LangflowDrawingIcon (size 24) as the icon-only mode so the loading
+          glyph is visually identical across component generation and a test
+          run. */}
       <div className="mb-2 flex items-center gap-2 text-sm font-medium">
         {isReady ? (
           <Check className="h-4 w-4 text-accent-emerald-foreground" />

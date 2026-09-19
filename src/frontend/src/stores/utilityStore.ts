@@ -86,7 +86,6 @@ export const useUtilityStore = create<UtilityStoreType>((set, get) => ({
   setAssistantMaxMessageLength: (assistantMaxMessageLength: number) =>
     set({ assistantMaxMessageLength }),
   assistantDefaultModel: "",
-  assistantAutoApplyDefault: false,
   assistantDockDefault: false,
   setAssistantDefaults: (defaults) => set(defaults),
   localVectorStoreAvailable: true,

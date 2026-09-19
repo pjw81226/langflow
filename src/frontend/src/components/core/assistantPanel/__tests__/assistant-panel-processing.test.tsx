@@ -87,17 +87,9 @@ jest.mock("../hooks", () => ({
     isProcessing: mockIsProcessing,
     currentStep: null,
     handleSend: jest.fn(),
+    handleTestFlow: jest.fn(),
     handleApprove: jest.fn(),
-    handleUpdateFlowAction: jest.fn(),
-    handleApplyFlowProposal: jest.fn(),
-    handleRevertFlowProposal: jest.fn(),
-    handleDismissFlowProposal: jest.fn(),
-    handleApprovePlan: jest.fn(),
-    handleDismissPlan: jest.fn(),
-    handleResetPlan: jest.fn(),
     handleAcknowledgeValidation: jest.fn(),
-    isRefiningPlan: false,
-    skipAll: false,
     handleRetry: jest.fn(),
     handleStopGeneration: jest.fn(),
     handleClearHistory: jest.fn(),
@@ -153,6 +145,18 @@ describe("AssistantPanel outside click", () => {
     fireEvent.pointerDown(getByTestId("assistant-panel"));
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("AssistantPanel legacy settings", () => {
+  it("should_clear_the_settings_of_removed_features_on_mount", () => {
+    localStorage.setItem("langflow-assistant-skip-all", "true");
+    localStorage.setItem("langflow-assistant-history-limit", "10");
+
+    render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+    expect(localStorage.getItem("langflow-assistant-skip-all")).toBeNull();
+    expect(localStorage.getItem("langflow-assistant-history-limit")).toBeNull();
   });
 });
 

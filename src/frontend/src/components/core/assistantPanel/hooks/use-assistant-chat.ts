@@ -1,10 +1,7 @@
-import { useUpdateNodeInternals } from "@xyflow/react";
-import { cloneDeep } from "lodash";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ShortUniqueId from "short-unique-id";
 import {
-  type AgenticFlowUpdateEvent,
   type AgenticStepType,
   postAssistStream,
 } from "@/controllers/API/queries/agentic";
@@ -12,46 +9,22 @@ import { usePostValidateComponentCode } from "@/controllers/API/queries/nodes/us
 import { BASE_URL_API } from "@/customization/config-constants";
 import useSaveFlow from "@/hooks/flows/use-save-flow";
 import { useAddComponent } from "@/hooks/use-add-component";
-import useAssistantManagerStore from "@/stores/assistantManagerStore";
-import useFlowStore from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
-import { useUtilityStore } from "@/stores/utilityStore";
 import type { APIClassType } from "@/types/api";
 import type {
   AssistantMessage,
   AssistantMode,
   AssistantModel,
 } from "../assistant-panel.types";
-import { applyFlowProposalToCanvas } from "../helpers/apply-flow-proposal";
-import { applyFlowUpdate as applyFlowUpdateImpl } from "../helpers/apply-flow-update";
-import {
-  buildRefinementInput,
-  buildTaskFromEvent,
-  inProgressTaskFromEvent,
-} from "../helpers/assistant-event-mappers";
 import { buildUiGlossary } from "../helpers/ui-glossary";
-import {
-  stripVerificationCaveat,
-  testResultFromComplete,
-} from "../helpers/verification";
-import { commandAckMessages } from "./command-ack";
-import {
-  hasExplicitSkipAll,
-  markSkipAllExplicit,
-  readSkipAll,
-  writeSkipAll,
-} from "./skip-all-storage";
-import type { UseAssistantChatReturn } from "./use-assistant-chat.types";
+import { testResultFromComplete } from "../helpers/verification";
+import type {
+  AssistantSendOptions,
+  UseAssistantChatReturn,
+} from "./use-assistant-chat.types";
 
 const uid = new ShortUniqueId();
 const AGENTIC_SESSION_PREFIX = "agentic_";
-const SKIP_ALL_COMMAND = "/skip-all";
-const SKIP_ALL_APPROVAL_TEXT =
-  "User approved the plan. Proceed with the build.";
-// Backend protocol string (never user-authored) — the silent continuation turn after
-// an applied edit; must stay byte-identical to EDIT_CONTINUATION_INPUT in flow_types.py.
-const EDIT_CONTINUATION_INPUT =
-  "The proposed canvas edits were applied. Continue with the remaining steps of my previous request (for example, running the flow). If editing was the entire request, just confirm briefly.";
 
 /**
  * Fire-and-forget call to wipe the calling user's session-scoped state
@@ -70,8 +43,6 @@ async function fireSessionReset(sessionId: string): Promise<void> {
   }
 }
 
-// Known size debt: `handleSend` (~390 lines, the SSE pump) keeps this hook over
-// the ceiling; splitting it needs a dedicated state-machine refactor.
 interface UseAssistantChatOptions {
   canUseModel?: (model: AssistantModel) => boolean;
 }
@@ -89,31 +60,6 @@ export function useAssistantChat(
     options.canUseModel ?? (() => true),
   );
   canUseModelRef.current = options.canUseModel ?? (() => true);
-  // After a set_flow, buffer subsequent events (mixed-run defense); reset per send.
-  const proposalPendingRef = useRef<boolean>(false);
-  // Last dismissed-not-reset plan markdown, re-injected as context by next send.
-  const dismissedPlanMarkdownRef = useRef<string | null>(null);
-  const [isRefiningPlan, setIsRefiningPlan] = useState<boolean>(false);
-  // localStorage-backed; the ref keeps the latest value visible to closures.
-  const [skipAll, setSkipAll] = useState<boolean>(() => readSkipAll());
-  const skipAllRef = useRef<boolean>(skipAll);
-  skipAllRef.current = skipAll;
-  // Deployment default for users who never chose. Applied in an effect, not as
-  // initial state: /config can land after this always-mounted hook has run.
-  const autoApplyDefault = useUtilityStore(
-    (state) => state.assistantAutoApplyDefault,
-  );
-  useEffect(() => {
-    if (hasExplicitSkipAll()) return;
-    skipAllRef.current = autoApplyDefault;
-    setSkipAll(autoApplyDefault);
-  }, [autoApplyDefault]);
-  // Auto-approve queue: a ref so handlers see the value in the same tick.
-  const autoApprovePlanRef = useRef<string | null>(null);
-  // Lazy ref: a direct handleSend dep on handleApprovePlan would be circular.
-  const handleApprovePlanRef = useRef<((id: string) => Promise<void>) | null>(
-    null,
-  );
   const sessionIdRef = useRef<string>(
     `${AGENTIC_SESSION_PREFIX}${uid.randomUUID(16)}`,
   );
@@ -124,18 +70,7 @@ export function useAssistantChat(
   const currentFlowId = useFlowsManagerStore((state) => state.currentFlowId);
   const addComponent = useAddComponent();
   const saveFlow = useSaveFlow();
-  // Ids whose continuation already fired; a ref for synchronous visibility.
-  const continuedEditMsgIds = useRef<Set<string>>(new Set());
   const { mutateAsync: validateComponent } = usePostValidateComponentCode();
-  // ReactFlow caches handle positions; un-notified mutations disconnect edges.
-  const updateNodeInternals = useUpdateNodeInternals();
-  // Pure-helper delegation; deps rely on xyflow's stable updateNodeInternals.
-  const applyFlowUpdate = useCallback(
-    (event: AgenticFlowUpdateEvent) => {
-      applyFlowUpdateImpl(event, updateNodeInternals);
-    },
-    [updateNodeInternals],
-  );
 
   const updateMessage = useCallback(
     (
@@ -155,74 +90,32 @@ export function useAssistantChat(
     async (
       content: string,
       model: AssistantModel | null,
-      options?: {
-        silent?: boolean;
-        internal?: boolean;
-        reuseAssistantMessageId?: string;
-        /** Localized text for the user bubble when ``content`` is a backend
-         * protocol string that must reach the server byte-identical. */
-        displayContent?: string;
-        /** Panel mode for this turn. Internal sends (plan approval, edit
-         * continuation) omit it and stay build turns. */
-        mode?: AssistantMode;
-        /** "test_flow": the backend runs the canvas flow once instead of
-         * starting an agent turn; ``content`` is only the bubble's label. */
-        action?: "test_flow";
-      },
+      options?: AssistantSendOptions,
     ) => {
-      // ``internal`` bypasses the processing guard to avoid the unmount blink.
-      if (!options?.internal && isProcessing) return;
-      // ``silent`` hides the user message; ``reuseAssistantMessageId`` resets a slot.
-      const silent = options?.silent === true;
-      const reuseId = options?.reuseAssistantMessageId;
-
-      // Exact match only: "/skip-all please" is a real prompt for the backend.
-      if (content.trim() === SKIP_ALL_COMMAND) {
-        const next = !skipAllRef.current;
-        skipAllRef.current = next;
-        setSkipAll(next);
-        writeSkipAll(next);
-        markSkipAllExplicit();
-        const announcement = next
-          ? t("assistant.command.skipAll.enabled")
-          : t("assistant.command.skipAll.disabled");
-        setMessages((prev) => [
-          ...prev,
-          ...commandAckMessages(content, announcement),
-        ]);
-        return;
-      }
-
+      if (isProcessing) return;
       if (!model?.provider || !model?.name || !canUseModelRef.current(model)) {
         return;
       }
 
       lastModelRef.current = model;
 
+      // "test_flow" runs the canvas flow once instead of starting an agent
+      // turn; ``content`` is then only the bubble's label.
+      const turnAction = options?.action;
       const turnMode: AssistantMode = options?.mode ?? "build";
       const isAskTurn = turnMode === "ask";
-      const turnAction = options?.action;
-      // Ask turns are read-only. The backend sends no canvas events for them; if
-      // one arrives anyway (older backend, bug), it must never reach the canvas.
-      const ignoreInAskMode = (eventName: string): boolean => {
-        if (!isAskTurn) return false;
-        console.warn(`[assistant] ignored ${eventName} in ask mode`);
-        return true;
-      };
 
-      const displayContent = options?.displayContent;
       const userMessage: AssistantMessage = {
         id: uid.randomUUID(10),
         role: "user",
-        content: displayContent ?? content,
-        ...(displayContent !== undefined ? { wireContent: content } : {}),
+        content,
         mode: turnMode,
         ...(turnAction ? { action: turnAction } : {}),
         timestamp: new Date(),
         status: "complete",
       };
 
-      const assistantMessageId = reuseId ?? uid.randomUUID(10);
+      const assistantMessageId = uid.randomUUID(10);
       const assistantMessage: AssistantMessage = {
         id: assistantMessageId,
         role: "assistant",
@@ -233,72 +126,27 @@ export function useAssistantChat(
         status: "streaming",
       };
 
-      if (reuseId) {
-        // Reset the slot in place ("streaming" keeps the loader mounted);
-        // clearing inProgressTask stops a prior turn bleeding in.
-        updateMessage(reuseId, () => ({
-          content: "",
-          status: "streaming" as const,
-          mode: turnMode,
-          progress: undefined,
-          error: undefined,
-          pendingPlanProposal: undefined,
-          planProposalStatus: undefined,
-          inProgressTask: undefined,
-          hidden: false,
-        }));
-      } else {
-        setMessages((prev) =>
-          silent
-            ? [...prev, assistantMessage]
-            : [...prev, userMessage, assistantMessage],
-        );
-      }
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsProcessing(true);
-      proposalPendingRef.current = false;
-
-      // Re-inject the dismissed plan once — the LLM has no server-side
-      // history, and a turn that never replans must not resend a stale plan.
-      // Only a build turn consumes the stash: a question asked while refining
-      // a plan must not swallow it.
-      // Nor a test turn: it sends no text of the user's at all.
-      const consumesPlan = !isAskTurn && !turnAction;
-      const stashedPlan = consumesPlan
-        ? dismissedPlanMarkdownRef.current
-        : null;
-      if (consumesPlan) dismissedPlanMarkdownRef.current = null;
-      const inputValue = stashedPlan
-        ? buildRefinementInput(stashedPlan, content)
-        : content;
 
       // Abort in-flight streams: a leaked SSE reader would mutate the same message.
       abortControllerRef.current?.abort();
       abortControllerRef.current = new AbortController();
 
-      const completedSteps: AgenticStepType[] = [];
-      let currentStepTracked: AgenticStepType | null = null;
-
       try {
         await postAssistStream(
           {
             flow_id: currentFlowId || "",
-            input_value: inputValue,
-            provider: model?.provider,
-            model_name: model?.name,
+            input_value: content,
+            provider: model.provider,
+            model_name: model.name,
             session_id: sessionIdRef.current,
             mode: turnMode,
             ...(turnAction ? { action: turnAction } : {}),
-            ...(skipAllRef.current ? { auto_apply: true } : {}),
             ...(isAskTurn ? { ui_glossary: buildUiGlossary() } : {}),
           },
           {
             onProgress: (event) => {
-              // When transitioning to a new step, mark the previous one as completed
-              if (currentStepTracked && event.step !== currentStepTracked) {
-                completedSteps.push(currentStepTracked);
-              }
-              currentStepTracked = event.step;
-
               setCurrentStep(event.step);
               updateMessage(assistantMessageId, (msg) => ({
                 // A retry restarts generation; stale partial output must not linger.
@@ -314,7 +162,6 @@ export function useAssistantChat(
                   componentCode:
                     event.component_code ?? msg.progress?.componentCode,
                 },
-                completedSteps: [...completedSteps],
               }));
             },
             onToken: (event) => {
@@ -322,208 +169,18 @@ export function useAssistantChat(
                 content: msg.content + event.chunk,
               }));
             },
-            onFlowPreview: (event) => {
-              if (ignoreInAskMode("flow_preview")) return;
-              applyFlowUpdate({
-                event: "flow_update",
-                action: "set_flow",
-                flow: event.flow,
-              });
-              updateMessage(assistantMessageId, () => ({
-                flowPreview: {
-                  flow: event.flow,
-                  name: event.name,
-                  nodeCount: event.node_count,
-                  edgeCount: event.edge_count,
-                  graph: event.graph,
-                },
-              }));
-            },
-            onFlowUpdate: (event) => {
-              if (ignoreInAskMode(`flow_update:${event.action}`)) return;
-              // Tool result delivered — retire the in-progress spinner row.
-              updateMessage(assistantMessageId, () => ({
-                inProgressTask: undefined,
-              }));
-              if (event.action === "edit_field") {
-                updateMessage(assistantMessageId, (msg) => ({
-                  flowActions: [
-                    ...(msg.flowActions ?? []),
-                    {
-                      id: event.id as string,
-                      type: "edit_field" as const,
-                      description: event.description as string,
-                      component_id: event.component_id as string,
-                      component_type: event.component_type as string,
-                      field: event.field as string,
-                      old_value: event.old_value,
-                      new_value: event.new_value,
-                      patch: event.patch as {
-                        op: string;
-                        path: string;
-                        value: unknown;
-                      }[],
-                      status: "pending" as const,
-                    },
-                  ],
-                }));
-                return;
-              }
-              if (event.action === "propose_plan") {
-                // Planning gate: canvas untouched; a fresh plan supersedes the stash.
-                dismissedPlanMarkdownRef.current = null;
-                setIsRefiningPlan(false);
-                if (skipAllRef.current) {
-                  // Skip-all: queue auto-approve and clear the streamed preamble.
-                  autoApprovePlanRef.current = assistantMessageId;
-                  updateMessage(assistantMessageId, () => ({
-                    content: "",
-                    inProgressTask: undefined,
-                  }));
-                  return;
-                }
-                const markdown =
-                  typeof event.markdown === "string" ? event.markdown : "";
-                // Clear inProgressTask: the agent is only planning, so no build
-                // spinner must linger next to the plan card.
-                updateMessage(assistantMessageId, () => ({
-                  pendingPlanProposal: { markdown },
-                  planProposalStatus: "pending" as const,
-                  inProgressTask: undefined,
-                }));
-                return;
-              }
-              if (event.action === "set_flow") {
-                if (skipAllRef.current || event.auto_apply === true) {
-                  // Nobody was asked, so keep a way back: snapshot the canvas
-                  // before the FIRST auto-applied flow of the turn (fix turns
-                  // emit more) and leave a card with Revert on the message.
-                  const preApply = useFlowStore.getState();
-                  const snapshot = {
-                    nodes: cloneDeep(preApply.nodes) as unknown[],
-                    edges: cloneDeep(preApply.edges) as unknown[],
-                  };
-                  // Direct apply — the queue-and-drain approach hit a stale-closure race.
-                  applyFlowUpdate({
-                    event: "flow_update",
-                    action: "set_flow",
-                    flow: event.flow,
-                  });
-                  const applied = (event.flow ?? {}) as Record<string, unknown>;
-                  const appliedData = (applied.data ?? {}) as {
-                    nodes?: unknown[];
-                    edges?: unknown[];
-                  };
-                  updateMessage(assistantMessageId, (msg) => ({
-                    autoAppliedFlow: {
-                      flow: applied,
-                      name: (applied.name as string | undefined) ?? undefined,
-                      nodeCount: (appliedData.nodes ?? []).length,
-                      edgeCount: (appliedData.edges ?? []).length,
-                    },
-                    flowProposalSnapshot: msg.flowProposalSnapshot ?? snapshot,
-                  }));
-                  return;
-                }
-                // Buffer as a proposal; canvas untouched until the user applies it.
-                proposalPendingRef.current = true;
-                const flow = (event.flow ?? {}) as Record<string, unknown>;
-                const data = (flow.data ?? {}) as {
-                  nodes?: unknown[];
-                  edges?: unknown[];
-                };
-                updateMessage(assistantMessageId, () => ({
-                  pendingFlowProposal: {
-                    flow,
-                    name: (flow.name as string | undefined) ?? undefined,
-                    nodeCount: (data.nodes ?? []).length,
-                    edgeCount: (data.edges ?? []).length,
-                    tailUpdates: [],
-                  },
-                  flowProposalStatus: "pending" as const,
-                }));
-                return;
-              }
-              // Proposal pending: buffer later events to avoid partial canvas state.
-              if (proposalPendingRef.current) {
-                updateMessage(assistantMessageId, (msg) =>
-                  msg.pendingFlowProposal
-                    ? {
-                        pendingFlowProposal: {
-                          ...msg.pendingFlowProposal,
-                          tailUpdates: [
-                            ...(msg.pendingFlowProposal.tailUpdates ?? []),
-                            event,
-                          ],
-                        },
-                      }
-                    : {},
-                );
-                return;
-              }
-              applyFlowUpdate(event);
-              // Checklist entry; dedup so SSE replays don't duplicate rows.
-              const newTask = buildTaskFromEvent(event);
-              if (newTask) {
-                updateMessage(assistantMessageId, (msg) => {
-                  const existing = msg.buildTasks ?? [];
-                  if (
-                    existing.some(
-                      (t) =>
-                        t.action === newTask.action &&
-                        t.componentId === newTask.componentId &&
-                        t.sourceId === newTask.sourceId &&
-                        t.targetId === newTask.targetId,
-                    )
-                  ) {
-                    return {};
-                  }
-                  return { buildTasks: [...existing, newTask] };
-                });
-              }
-            },
-            onToolStart: (event) => {
-              if (ignoreInAskMode("tool_start")) return;
-              // Latest tool_start wins; matching flow_update (or run end) retires it.
-              updateMessage(assistantMessageId, () => ({
-                inProgressTask: inProgressTaskFromEvent(event),
-              }));
-            },
             onComplete: (event) => {
-              const planMsgId = autoApprovePlanRef.current;
-              if (planMsgId) {
-                // Chain into turn 2 without resetting state (avoids the UI blink).
-                autoApprovePlanRef.current = null;
-                setTimeout(() => {
-                  handleApprovePlanRef.current?.(planMsgId);
-                }, 0);
-                return;
-              }
-              const testResult = testResultFromComplete(event.data);
               // A test turn's text is an English summary for the conversation
               // buffer; the card says the same in the UI language.
               const answer =
-                turnAction === "test_flow"
-                  ? ""
-                  : testResult
-                    ? stripVerificationCaveat(
-                        event.data.result || "",
-                        event.data.verification_caveat,
-                      )
-                    : event.data.result || "";
+                turnAction === "test_flow" ? "" : event.data.result || "";
               updateMessage(assistantMessageId, () => ({
                 status: "complete" as const,
-                inProgressTask: undefined,
                 content: answer,
-                testResult,
-                // Pure edits stay false so approval doesn't spawn a second message.
-                // An ask turn changed nothing, so there is nothing to continue.
-                continuationExpected:
-                  !isAskTurn && event.data.continuation_expected === true,
+                testResult: testResultFromComplete(event.data),
                 result: {
                   content: answer,
-                  validated: event.data.validated,
-                  hasFlow: event.data.has_flow,
+                  validated: event.data.validated === true,
                   className: event.data.class_name,
                   componentCode: event.data.component_code,
                   validationAttempts: event.data.validation_attempts,
@@ -555,7 +212,6 @@ export function useAssistantChat(
               updateMessage(assistantMessageId, () => ({
                 status: "cancelled" as const,
                 progress: undefined,
-                inProgressTask: undefined,
               }));
               setCurrentStep(null);
               setIsProcessing(false);
@@ -630,17 +286,10 @@ export function useAssistantChat(
 
       // Remove the failed assistant message so a fresh one is created by handleSend
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
-      void handleSend(
-        userMessage.wireContent ?? userMessage.content,
-        lastModel,
-        {
-          ...(userMessage.wireContent !== undefined
-            ? { displayContent: userMessage.content }
-            : {}),
-          mode: userMessage.mode,
-          action: userMessage.action,
-        },
-      );
+      void handleSend(userMessage.content, lastModel, {
+        mode: userMessage.mode,
+        action: userMessage.action,
+      });
     },
     [messages, handleSend],
   );
@@ -658,210 +307,9 @@ export function useAssistantChat(
     [isProcessing, saveFlow, handleSend, t],
   );
 
-  const handleUpdateFlowAction = useCallback(
-    async (
-      messageId: string,
-      actionId: string,
-      status: "applied" | "dismissed",
-    ) => {
-      updateMessage(messageId, (msg) => ({
-        flowActions: msg.flowActions?.map((a) =>
-          a.id === actionId ? { ...a, status } : a,
-        ),
-      }));
-
-      // All resolved with >=1 applied: save (backend reads DB) then resume.
-      const msg = messages.find((m) => m.id === messageId);
-      const actions = (msg?.flowActions ?? []).map((a) =>
-        a.id === actionId ? { ...a, status } : a,
-      );
-      if (actions.length === 0) return;
-      const stillPending = actions.some((a) => a.status === "pending");
-      const anyApplied = actions.some((a) => a.status === "applied");
-      if (stillPending || !anyApplied) return;
-      // A pure edit (no deferred "...and run it" step) must NOT spawn a
-      // second assistant message — the backend computes this flag.
-      if (!msg?.continuationExpected) return;
-      if (continuedEditMsgIds.current.has(messageId)) return;
-      if (
-        !lastModelRef.current ||
-        !canUseModelRef.current(lastModelRef.current)
-      )
-        return;
-      continuedEditMsgIds.current.add(messageId);
-
-      await saveFlow();
-      await handleSend(EDIT_CONTINUATION_INPUT, lastModelRef.current, {
-        silent: true,
-        internal: true,
-      });
-    },
-    [messages, updateMessage, saveFlow, handleSend],
-  );
-
-  const handleApplyFlowProposal = useCallback(
-    (messageId: string, mode: "replace" | "add" = "replace") => {
-      const message = messages.find((m) => m.id === messageId);
-      const proposal = message?.pendingFlowProposal;
-      if (!proposal) return;
-
-      // Snapshot the canvas BEFORE mutating so Revert can restore this exact
-      // state and re-enable the Add/Replace actions (client-side undo).
-      const preApply = useFlowStore.getState();
-      const snapshot = {
-        nodes: cloneDeep(preApply.nodes) as unknown[],
-        edges: cloneDeep(preApply.edges) as unknown[],
-      };
-
-      applyFlowProposalToCanvas(proposal, mode, updateNodeInternals);
-
-      // Keep the snapshot so the last apply stays undoable via the pending card.
-      updateMessage(messageId, () => ({
-        flowProposalStatus: "applied" as const,
-        flowProposalSnapshot: snapshot,
-      }));
-
-      // Minimize a floating panel so the just-accepted canvas is immediately
-      // visible. A docked panel covers nothing, so it stays.
-      const manager = useAssistantManagerStore.getState();
-      if (!manager.assistantDocked) manager.setAssistantSidebarOpen(false);
-
-      // Back to ``pending`` after 3s (legacy "Add to Flow" pattern) so the
-      // user can re-apply the same proposal after editing the canvas.
-      setTimeout(() => {
-        updateMessage(messageId, (msg) =>
-          msg.flowProposalStatus === "applied"
-            ? { flowProposalStatus: "pending" }
-            : {},
-        );
-      }, 3000);
-    },
-    [messages, updateMessage, updateNodeInternals],
-  );
-
-  const handleRevertFlowProposal = useCallback(
-    (messageId: string) => {
-      const message = messages.find((m) => m.id === messageId);
-      const snapshot = message?.flowProposalSnapshot;
-      if (!snapshot) return;
-      // Restore atomically (same path as apply so loop/dynamic edges redraw) and
-      // clear the snapshot so the card returns to the initial pending state.
-      useFlowStore
-        .getState()
-        .setNodesAndEdges(snapshot.nodes as never[], snapshot.edges as never[]);
-      updateMessage(messageId, () => ({
-        flowProposalStatus: "pending" as const,
-        flowProposalSnapshot: undefined,
-      }));
-    },
-    [messages, updateMessage],
-  );
-
-  const handleRevertAutoApplied = useCallback(
-    (messageId: string) => {
-      const message = messages.find((m) => m.id === messageId);
-      const snapshot = message?.flowProposalSnapshot;
-      const flow = message?.autoAppliedFlow;
-      if (!snapshot || !flow) return;
-      useFlowStore
-        .getState()
-        .setNodesAndEdges(snapshot.nodes as never[], snapshot.edges as never[]);
-      // The canvas is back as it was. The flow becomes an ordinary proposal, so
-      // the user can still put it on the canvas, this time by choice.
-      updateMessage(messageId, () => ({
-        autoAppliedFlow: undefined,
-        flowProposalSnapshot: undefined,
-        pendingFlowProposal: { ...flow, tailUpdates: [] },
-        flowProposalStatus: "pending" as const,
-      }));
-    },
-    [messages, updateMessage],
-  );
-
-  const handleDismissFlowProposal = useCallback(
-    (messageId: string) => {
-      // Keep the proposal data so the card renders muted instead of vanishing.
-      updateMessage(messageId, () => ({
-        flowProposalStatus: "dismissed" as const,
-      }));
-    },
-    [updateMessage],
-  );
-
-  const handleApprovePlan = useCallback(
-    async (messageId: string) => {
-      // Manual click marks the card approved + fresh turn; skip-all reuses
-      // the SAME message slot so the auto-approve bridge is invisible.
-      if (
-        !lastModelRef.current ||
-        !canUseModelRef.current(lastModelRef.current)
-      )
-        return;
-      if (skipAllRef.current) {
-        await handleSend(SKIP_ALL_APPROVAL_TEXT, lastModelRef.current, {
-          silent: true,
-          internal: true,
-          reuseAssistantMessageId: messageId,
-        });
-        return;
-      }
-      updateMessage(messageId, () => ({
-        planProposalStatus: "approved" as const,
-      }));
-      // The protocol string goes to the backend; the bubble shows a localized line.
-      await handleSend(SKIP_ALL_APPROVAL_TEXT, lastModelRef.current, {
-        displayContent: t("assistant.plan.approvalMessage"),
-      });
-    },
-    [updateMessage, handleSend, t],
-  );
-  // Same trick as handleApplyFlowProposalRef — drained by onComplete.
-  handleApprovePlanRef.current = handleApprovePlan;
-
   const handleAcknowledgeValidation = useCallback(
     (messageId: string) => {
       updateMessage(messageId, () => ({ validationAcknowledged: true }));
-    },
-    [updateMessage],
-  );
-
-  const handleDismissPlan = useCallback((messageId: string) => {
-    // Dismiss = "refining": stash the markdown for re-injection on the next
-    // handleSend; the user stays in control (nothing auto-sends here).
-    setMessages((prev) => {
-      const target = prev.find((m) => m.id === messageId);
-      const markdown = target?.pendingPlanProposal?.markdown ?? "";
-      if (markdown) {
-        dismissedPlanMarkdownRef.current = markdown;
-      }
-      return prev.map((m) =>
-        m.id === messageId
-          ? { ...m, planProposalStatus: "refining" as const }
-          : m,
-      );
-    });
-    setIsRefiningPlan(true);
-  }, []);
-
-  const toggleSkipAll = useCallback(() => {
-    setSkipAll((prev) => {
-      const next = !prev;
-      skipAllRef.current = next;
-      writeSkipAll(next);
-      markSkipAllExplicit();
-      return next;
-    });
-  }, []);
-
-  const handleResetPlan = useCallback(
-    (messageId: string) => {
-      // Reset closes the gate: drop the stash (no re-injection) and flip
-      // the card to the muted "Dismissed" terminal state.
-      dismissedPlanMarkdownRef.current = null;
-      setIsRefiningPlan(false);
-      updateMessage(messageId, () => ({
-        planProposalStatus: "dismissed" as const,
-      }));
     },
     [updateMessage],
   );
@@ -872,12 +320,7 @@ export function useAssistantChat(
     setMessages((prev) =>
       prev.map((msg) =>
         msg.status === "streaming"
-          ? {
-              ...msg,
-              status: "cancelled" as const,
-              progress: undefined,
-              inProgressTask: undefined,
-            }
+          ? { ...msg, status: "cancelled" as const, progress: undefined }
           : msg,
       ),
     );
@@ -890,8 +333,6 @@ export function useAssistantChat(
     setMessages([]);
     setCurrentStep(null);
     setIsProcessing(false);
-    dismissedPlanMarkdownRef.current = null;
-    setIsRefiningPlan(false);
     const newId = `${AGENTIC_SESSION_PREFIX}${uid.randomUUID(16)}`;
     sessionIdRef.current = newId;
     setSessionId(newId);
@@ -904,8 +345,6 @@ export function useAssistantChat(
     setMessages(msgs);
     setCurrentStep(null);
     setIsProcessing(false);
-    dismissedPlanMarkdownRef.current = null;
-    setIsRefiningPlan(false);
     sessionIdRef.current = id;
     setSessionId(id);
   }, []);
@@ -918,18 +357,7 @@ export function useAssistantChat(
     handleSend,
     handleTestFlow,
     handleApprove,
-    handleUpdateFlowAction,
-    handleApplyFlowProposal,
-    handleRevertFlowProposal,
-    handleRevertAutoApplied,
-    handleDismissFlowProposal,
-    handleApprovePlan,
-    handleDismissPlan,
-    handleResetPlan,
     handleAcknowledgeValidation,
-    isRefiningPlan,
-    skipAll,
-    toggleSkipAll,
     handleRetry,
     handleStopGeneration,
     handleClearHistory,

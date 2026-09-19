@@ -20,6 +20,7 @@ import { AssistantNoModelsState } from "./components/assistant-no-models-state";
 import { AssistantStarterPrompts } from "./components/assistant-starter-prompts";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
 // Direct paths: tests mock the ./hooks barrel wholesale.
+import { purgeLegacyAssistantStorage } from "./hooks/legacy-storage";
 import { useAssistantDock } from "./hooks/use-assistant-dock";
 import { useAssistantMode } from "./hooks/use-assistant-mode";
 
@@ -54,7 +55,6 @@ interface AssistantInputWithScrollProps {
   autoFocus?: boolean;
   draftMessage?: string;
   onDraftChange?: (draft: string) => void;
-  isRefiningPlan?: boolean;
   mode: AssistantMode;
   onModeChange: (mode: AssistantMode) => void;
   onTestFlow: (model: AssistantModel | null) => void;
@@ -69,7 +69,6 @@ function AssistantInputWithScroll({
   autoFocus,
   draftMessage,
   onDraftChange,
-  isRefiningPlan,
   mode,
   onModeChange,
   onTestFlow,
@@ -91,7 +90,6 @@ function AssistantInputWithScroll({
       autoFocus={autoFocus}
       draftMessage={draftMessage}
       onDraftChange={onDraftChange}
-      isRefiningPlan={isRefiningPlan}
       mode={mode}
       onModeChange={onModeChange}
       onTestFlow={onTestFlow}
@@ -120,6 +118,10 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     if (isOpen && isReadOnly) onClose();
   }, [isOpen, isReadOnly, onClose]);
 
+  useEffect(() => {
+    purgeLegacyAssistantStorage();
+  }, []);
+
   const canSendWithModel = useCallback(
     (model: AssistantModel | null) => isCatalogReady && isModelEnabled(model),
     [isCatalogReady, isModelEnabled],
@@ -132,18 +134,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     handleSend,
     handleTestFlow,
     handleApprove,
-    handleUpdateFlowAction,
-    handleApplyFlowProposal,
-    handleRevertFlowProposal,
-    handleRevertAutoApplied,
-    handleDismissFlowProposal,
-    handleApprovePlan,
-    handleDismissPlan,
-    handleResetPlan,
     handleAcknowledgeValidation,
-    isRefiningPlan,
-    skipAll,
-    toggleSkipAll,
     handleRetry,
     handleStopGeneration,
     handleClearHistory,
@@ -426,9 +417,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
           onSelectSession={switchSession}
           onDeleteSession={deleteSession}
           isExpanded={useExpandedSize}
-          skipAll={skipAll}
-          onToggleSkipAll={toggleSkipAll}
-          isProcessing={isProcessing}
           isDocked={isDocked}
           canDock={canDock}
           onToggleDock={toggleDock}
@@ -449,20 +437,11 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   key={msg.id}
                   message={msg}
                   onApprove={handleApproveAndClose}
-                  onUpdateFlowAction={handleUpdateFlowAction}
-                  onApplyFlowProposal={handleApplyFlowProposal}
-                  onRevertFlowProposal={handleRevertFlowProposal}
-                  onRevertAutoApplied={handleRevertAutoApplied}
-                  onDismissFlowProposal={handleDismissFlowProposal}
-                  onApprovePlan={handleApprovePlan}
-                  onDismissPlan={handleDismissPlan}
-                  onResetPlan={handleResetPlan}
                   onRetry={
                     isCatalogReady && hasEnabledModels
                       ? handleAuthorizedRetry
                       : undefined
                   }
-                  skipApprovalGate={skipAll}
                   onAcknowledgeValidation={handleAcknowledgeValidation}
                   onTestFlow={
                     msg.id === latestTestResultId && canRunActions
@@ -488,7 +467,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               onDraftChange={(draft) => {
                 draftMessageCache = draft;
               }}
-              isRefiningPlan={isRefiningPlan}
               mode={mode}
               onModeChange={setMode}
               onTestFlow={handleAuthorizedTest}
@@ -526,7 +504,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                 setHasDraft(draft.length > 0);
               }}
               prefill={prefill}
-              isRefiningPlan={isRefiningPlan}
               onMentionOpenChange={setIsMentionOpen}
               mode={mode}
               onModeChange={setMode}

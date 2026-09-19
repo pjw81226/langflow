@@ -23,19 +23,13 @@ import { ModelSelector } from "./model-selector";
 const GENERATING_STEPS: AgenticStepType[] = [
   "generating",
   "generating_component",
-  "generating_plan",
-  "generating_flow",
-  "orchestrating",
 ];
 
 // Intent-specific placeholder per generating step (no random rotation while
-// the LLM produces a component or flow). Keys, translated on render.
+// the LLM produces an answer or a component). Keys, translated on render.
 const GENERATING_PLACEHOLDER_KEY: Partial<Record<AgenticStepType, string>> = {
   generating: "assistant.generating.response",
   generating_component: "assistant.generating.component",
-  generating_plan: "assistant.generating.plan",
-  generating_flow: "assistant.generating.flow",
-  orchestrating: "assistant.generating.orchestrating",
 };
 
 // Hook for rotating placeholder messages during post-generation processing
@@ -79,13 +73,6 @@ interface AssistantInputProps {
   autoFocus?: boolean;
   draftMessage?: string;
   onDraftChange?: (draft: string) => void;
-  /**
-   * Set when the user dismissed a plan and is composing the refinement.
-   * Swaps the idle placeholder for a directed cue ("Tell me what to
-   * change…"). Has no effect while a generating step is active — the
-   * intent-specific generating placeholder takes precedence.
-   */
-  isRefiningPlan?: boolean;
   /** Notifies the panel when the @-mention popover opens/closes so it can make
    * room for the upward-opening list in the compact (no-messages) layout. */
   onMentionOpenChange?: (open: boolean) => void;
@@ -113,7 +100,6 @@ export function AssistantInput({
   autoFocus = false,
   draftMessage = "",
   onDraftChange,
-  isRefiningPlan = false,
   onMentionOpenChange,
   mode = "build",
   onModeChange,
@@ -356,10 +342,7 @@ export function AssistantInput({
                         GENERATING_PLACEHOLDER_KEY[currentStep]) ||
                         "assistant.workingOnIt",
                     )
-                : // A plan is only ever refined by a build turn.
-                  isRefiningPlan && mode === "build"
-                  ? t("assistant.refiningPlanPlaceholder")
-                  : (placeholder ?? t(idlePlaceholderKey))
+                : (placeholder ?? t(idlePlaceholderKey))
             }
             disabled={disabled || isProcessing}
             className={cn(

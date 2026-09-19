@@ -1,13 +1,10 @@
 import type {
   AgenticErrorDetail,
-  AgenticFlowUpdateEvent,
   AgenticProgressState,
   AgenticResult,
-  AgenticStepType,
   AgenticTestResult,
   AssistantMode,
   AssistantModelNotice,
-  FlowAction,
 } from "@/controllers/API/queries/agentic";
 
 export type { AssistantMode };
@@ -23,72 +20,20 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** Panel mode this turn was sent in. Absent on messages stored before modes
-   * existed, which were all build turns. */
+  /** Panel mode this turn was sent in. */
   mode?: AssistantMode;
-  /** Set on both messages of a "Test flow" turn: no agent ran and the canvas
-   * cannot change, so it is never locked for it. */
+  /** Set on both messages of a "Test flow" turn: no agent ran. */
   action?: "test_flow";
   /** Outcome of the flow's test run, rendered as a result card. */
   testResult?: AgenticTestResult;
-  /** What was actually sent to the backend when it differs from the shown
-   * ``content`` (protocol strings such as the plan approval signal). A retry
-   * must resend this, never the localized display text. */
-  wireContent?: string;
   timestamp: Date;
   status?: AssistantMessageStatus;
   progress?: AgenticProgressState;
-  completedSteps?: AgenticStepType[];
   result?: AgenticResult;
   error?: string;
   /** Structured failure context from the SSE error event's additive
    * ``detail`` field — rendered as a collapsed "Error details" expander. */
   errorDetail?: AgenticErrorDetail;
-  flowPreview?: {
-    flow: Record<string, unknown>;
-    name: string;
-    nodeCount: number;
-    edgeCount: number;
-    graph: string;
-  };
-  flowActions?: FlowAction[];
-  /** A deferred follow-up (e.g. run) was requested alongside an edit, so
-   * approving a man-in-the-loop edit on this message resumes via the
-   * continuation turn. False for a pure edit (no redundant 2nd message). */
-  continuationExpected?: boolean;
-  pendingFlowProposal?: PendingFlowProposal;
-  /** A flow that was put on the canvas without asking (auto-apply on, or the
-   * backend marked it auto_apply). Shown as an "applied" card whose Revert
-   * restores ``flowProposalSnapshot``. */
-  autoAppliedFlow?: Omit<PendingFlowProposal, "tailUpdates">;
-  flowProposalStatus?: FlowProposalStatus;
-  /** Canvas nodes/edges captured right before Add/Replace so a client-side
-   * Revert restores the pre-apply state and re-enables the apply actions. */
-  flowProposalSnapshot?: { nodes: unknown[]; edges: unknown[] };
-  pendingPlanProposal?: PendingPlanProposal;
-  planProposalStatus?: PlanProposalStatus;
-  /**
-   * Live checklist of incremental canvas mutations the agent performed
-   * (add/remove/connect/configure). Populated as the SSE stream lands;
-   * the UI renders this as a checkboxed task list above the markdown.
-   * Excludes the destructive ``set_flow`` proposal path — that goes
-   * through the dedicated Continue/Dismiss card.
-   */
-  buildTasks?: BuildTask[];
-  /**
-   * The canvas-mutating tool currently executing (from the tool_start SSE
-   * event). Rendered as a spinner row under the checklist; cleared when the
-   * matching flow_update lands or the run completes/cancels. Kept on error
-   * so the user sees exactly where the run stopped.
-   */
-  inProgressTask?: InProgressBuildTask;
-  /**
-   * Skip rendering this message entirely. Used by skip-all to suppress
-   * the propose_plan turn's preamble — the user never sees the "I am
-   * proposing a plan and waiting" content that the LLM streams before
-   * the tool call.
-   */
-  hidden?: boolean;
   /**
    * True once the user has acknowledged the "Component ready" / validation
    * gate — either by clicking Continue or by the 30s auto-dismiss timer
@@ -115,85 +60,6 @@ export interface AssistantMessage {
   notices?: AssistantModelNotice[];
 }
 
-/** A single incremental canvas operation surfaced to the user as a task. */
-export type BuildTaskAction =
-  | "add_component"
-  | "remove_component"
-  | "connect"
-  | "configure";
-
-export interface BuildTask {
-  /** Canvas action that produced this entry. */
-  action: BuildTaskAction;
-  /** Subject component id for add/remove/configure. */
-  componentId?: string;
-  /** Friendly type label for add (e.g. "ChatInput"). */
-  componentType?: string;
-  /** Source endpoint for connect. */
-  sourceId?: string;
-  /** Target endpoint for connect. */
-  targetId?: string;
-  /** Local timestamp the SSE event was received — for ordering. */
-  receivedAt: number;
-}
-
-/** A canvas-mutating tool the agent is executing right now (not yet completed). */
-export interface InProgressBuildTask {
-  /** Backend tool name, e.g. "add_component", "build_flow". */
-  tool: string;
-  /** English fallback label from the backend; the UI prefers i18n by tool. */
-  label?: string;
-  /** Friendly type for add_component (e.g. "ChatInput"). */
-  componentType?: string;
-  /** Subject component id for remove/configure/propose. */
-  componentId?: string;
-  /** Source endpoint for connect_components. */
-  sourceId?: string;
-  /** Target endpoint for connect_components. */
-  targetId?: string;
-  /** Local timestamp the SSE event was received. */
-  receivedAt: number;
-}
-
-export type FlowProposalStatus = "pending" | "applied" | "dismissed";
-
-/**
- * Status of the BUILD-mode planning gate that runs BEFORE the agent calls
- * search/describe/build_flow.
- *
- * - "pending"    — card shows Continue/Dismiss; agent is waiting.
- * - "refining"   — user clicked Dismiss; card stays visible with Continue +
- *                  Reset, and the next user message carries the prior plan
- *                  markdown as context so the agent (which has no server-side
- *                  conversation history) can replan with full awareness.
- * - "approved"   — user clicked Continue; agent resumed and is building.
- * - "dismissed"  — user clicked Reset on a refining card; planning gate is
- *                  closed, stash cleared, no prior plan re-injected.
- */
-export type PlanProposalStatus =
-  | "pending"
-  | "refining"
-  | "approved"
-  | "dismissed";
-
-export interface PendingPlanProposal {
-  /** Raw markdown emitted by the agent's propose_plan tool. */
-  markdown: string;
-}
-
-export interface PendingFlowProposal {
-  flow: Record<string, unknown>;
-  name?: string;
-  nodeCount: number;
-  edgeCount: number;
-  /**
-   * Events that arrived AFTER the gating set_flow. Per the agent prompt
-   * this should never happen, but if it does the tail events are buffered
-   * here so they replay in order when the user clicks Continue.
-   */
-  tailUpdates?: AgenticFlowUpdateEvent[];
-}
-
 export interface AssistantModel {
   id: string;
   name: string;
@@ -209,7 +75,7 @@ export interface AssistantPanelProps {
 /** AssistantMessage with Date serialized as ISO string and progress stripped. */
 export type SerializedAssistantMessage = Omit<
   AssistantMessage,
-  "timestamp" | "progress" | "flowProposalSnapshot"
+  "timestamp" | "progress"
 > & {
   timestamp: string;
 };

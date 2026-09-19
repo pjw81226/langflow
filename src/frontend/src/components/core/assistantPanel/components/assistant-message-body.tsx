@@ -1,14 +1,9 @@
 /**
  * Body of an assistant chat message — the part that switches between the
- * loading state, validated component result, file cards, plan card, flow
- * proposal card, and plain markdown response. Owns the validation-gate
- * acknowledgement state (Continue click / 30s timeout) so the parent
- * `AssistantMessageItem` stays focused on avatar + header layout.
- *
- * Why split from `AssistantMessageItem`: that file was approaching the
- * 500-line hard limit, and the rendering decision tree here grows whenever
- * the assistant gains a new response type. Keeping it separate gives that
- * tree room to evolve without dragging the layout shell with it.
+ * loading state, the error, the component result and the plain markdown
+ * response. Owns the validation-gate acknowledgement state (Continue click /
+ * 30s timeout) so the parent `AssistantMessageItem` stays focused on
+ * avatar + header layout.
  */
 
 import { useEffect, useState } from "react";
@@ -18,13 +13,9 @@ import remarkGfm from "remark-gfm";
 import SimplifiedCodeTabComponent from "@/components/core/codeTabsComponent";
 import { extractLanguage, isCodeBlock } from "@/utils/codeBlockUtils";
 import type { AssistantMessage } from "../assistant-panel.types";
-import { ChatMarkdown } from "../helpers/chat-markdown";
 import { AssistantComponentResult } from "./assistant-component-result";
 import { AssistantErrorDetails } from "./assistant-error-details";
-import { FlowEditCarousel } from "./assistant-flow-edit-card";
-import { AssistantFlowPreview } from "./assistant-flow-preview";
 import { AssistantLoadingState } from "./assistant-loading-state";
-import { AssistantPlanCard } from "./assistant-plan-card";
 import { AssistantValidationFailed } from "./assistant-validation-failed";
 
 // Auto-dismiss the validation gate after this long in a terminal state, so the
@@ -33,23 +24,9 @@ const VALIDATION_GATE_AUTO_DISMISS_MS = 30000;
 
 export interface AssistantMessageBodyProps {
   message: AssistantMessage;
-  /** True when streaming AND in a rich loading step (component/flow build). */
+  /** True when streaming AND in a rich loading step (component generation). */
   isGeneratingCode: boolean;
-  /** Pre-acknowledges the validation gate without a manual user click. */
-  skipApprovalGate?: boolean;
   onApprove?: (messageId: string) => void;
-  onUpdateFlowAction?: (
-    messageId: string,
-    actionId: string,
-    status: "applied" | "dismissed",
-  ) => void;
-  onApplyFlowProposal?: (messageId: string, mode?: "replace" | "add") => void;
-  onRevertFlowProposal?: (messageId: string) => void;
-  onRevertAutoApplied?: (messageId: string) => void;
-  onDismissFlowProposal?: (messageId: string) => void;
-  onApprovePlan?: (messageId: string) => void;
-  onDismissPlan?: (messageId: string) => void;
-  onResetPlan?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
   /** Persist the validation-gate acknowledgement onto the message itself. */
   onAcknowledgeValidation?: (messageId: string) => void;
@@ -58,16 +35,7 @@ export interface AssistantMessageBodyProps {
 export function AssistantMessageBody({
   message,
   isGeneratingCode,
-  skipApprovalGate = false,
   onApprove,
-  onUpdateFlowAction,
-  onApplyFlowProposal,
-  onRevertFlowProposal,
-  onRevertAutoApplied,
-  onDismissFlowProposal,
-  onApprovePlan,
-  onDismissPlan,
-  onResetPlan,
   onRetry,
   onAcknowledgeValidation,
 }: AssistantMessageBodyProps) {
@@ -78,10 +46,10 @@ export function AssistantMessageBody({
   const hasValidationError =
     message.result?.validated === false && message.result?.validationError;
 
-  // skip-all pre-sets the gate to "complete"; validationAcknowledged is the
-  // persisted twin so the gate doesn't reappear on remount (panel close+reopen).
+  // validationAcknowledged is the persisted twin so the gate doesn't reappear
+  // on remount (panel close+reopen).
   const [validationAnimationComplete, setValidationAnimationComplete] =
-    useState(() => skipApprovalGate || Boolean(message.validationAcknowledged));
+    useState(() => Boolean(message.validationAcknowledged));
 
   // Persist the acknowledgement onto the message itself. Fires once when
   // the local state transitions to true (Continue click OR 30s timeout).
@@ -136,32 +104,12 @@ export function AssistantMessageBody({
   }
 
   if (message.status === "error" && message.error) {
-    // A turn can fail AFTER building part of the flow (step budget). Error text alone
-    // would strand that proposal, which the backend told the user is offered here.
-    const strandedProposal =
-      message.flowProposalStatus && message.pendingFlowProposal ? (
-        <AssistantFlowPreview
-          flowPreview={{
-            flow: message.pendingFlowProposal.flow,
-            name: message.pendingFlowProposal.name ?? "",
-            nodeCount: message.pendingFlowProposal.nodeCount,
-            edgeCount: message.pendingFlowProposal.edgeCount,
-            graph: "",
-          }}
-          status={message.flowProposalStatus}
-          onApply={(mode) => onApplyFlowProposal?.(message.id, mode)}
-          onRevert={() => onRevertFlowProposal?.(message.id)}
-          canRevert={Boolean(message.flowProposalSnapshot)}
-          onDismiss={() => onDismissFlowProposal?.(message.id)}
-        />
-      ) : null;
     return (
       <div className="flex flex-col gap-1">
         <p className="text-sm font-normal text-destructive">{message.error}</p>
         {message.errorDetail && (
           <AssistantErrorDetails detail={message.errorDetail} />
         )}
-        {strandedProposal}
       </div>
     );
   }
@@ -194,112 +142,6 @@ export function AssistantMessageBody({
         result={message.result}
         onApprove={() => onApprove?.(message.id)}
       />
-    );
-  }
-
-  if (message.flowActions && message.flowActions.length > 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        {message.content && <ChatMarkdown>{message.content}</ChatMarkdown>}
-        <FlowEditCarousel
-          actions={message.flowActions}
-          onUpdateAction={(actionId, status) =>
-            onUpdateFlowAction?.(message.id, actionId, status)
-          }
-        />
-      </div>
-    );
-  }
-
-  // BUILD-mode planning gate: propose_plan markdown behind Continue (resume
-  // via a new user turn) / Dismiss (user types refinement, agent replans).
-  if (message.planProposalStatus && message.pendingPlanProposal) {
-    return (
-      <div className="flex flex-col gap-3">
-        {message.content && <ChatMarkdown>{message.content}</ChatMarkdown>}
-        <AssistantPlanCard
-          markdown={message.pendingPlanProposal.markdown}
-          status={message.planProposalStatus}
-          onApprove={() => onApprovePlan?.(message.id)}
-          onDismiss={() => onDismissPlan?.(message.id)}
-          onReset={() => onResetPlan?.(message.id)}
-        />
-      </div>
-    );
-  }
-
-  // Auto-applied flow: nobody was asked, so the card's job is the way back. It
-  // needs the pre-apply snapshot, which does not survive a reload; without it
-  // the version-based revert in the message footer takes over.
-  if (
-    message.autoAppliedFlow &&
-    message.flowProposalSnapshot &&
-    !message.pendingFlowProposal
-  ) {
-    const cleanContent = message.content
-      ?.replace(/```flow_json[\s\S]*?```/gi, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return (
-      <div className="flex flex-col gap-3">
-        {cleanContent && <ChatMarkdown>{cleanContent}</ChatMarkdown>}
-        <AssistantFlowPreview
-          flowPreview={{
-            flow: message.autoAppliedFlow.flow,
-            name: message.autoAppliedFlow.name ?? "",
-            nodeCount: message.autoAppliedFlow.nodeCount,
-            edgeCount: message.autoAppliedFlow.edgeCount,
-            graph: "",
-          }}
-          status="applied"
-          onRevert={() => onRevertAutoApplied?.(message.id)}
-          canRevert
-        />
-      </div>
-    );
-  }
-
-  // Gated flow proposal: a from-scratch set_flow previews behind Continue/
-  // Dismiss so the user can refuse a destructive canvas replacement.
-  if (message.flowProposalStatus && message.pendingFlowProposal) {
-    const proposalPreview = {
-      flow: message.pendingFlowProposal.flow,
-      name: message.pendingFlowProposal.name ?? "",
-      nodeCount: message.pendingFlowProposal.nodeCount,
-      edgeCount: message.pendingFlowProposal.edgeCount,
-      graph: "",
-    };
-    const cleanContent = message.content
-      ?.replace(/```flow_json[\s\S]*?```/gi, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return (
-      <div className="flex flex-col gap-3">
-        {cleanContent && <ChatMarkdown>{cleanContent}</ChatMarkdown>}
-        <AssistantFlowPreview
-          flowPreview={proposalPreview}
-          status={message.flowProposalStatus}
-          onApply={(mode) => onApplyFlowProposal?.(message.id, mode)}
-          onRevert={() => onRevertFlowProposal?.(message.id)}
-          canRevert={Boolean(message.flowProposalSnapshot)}
-          onDismiss={() => onDismissFlowProposal?.(message.id)}
-        />
-      </div>
-    );
-  }
-
-  // Once applied, only flowProposalStatus remains — render the muted applied-
-  // state card from message.flowPreview (legacy field for serialized sessions).
-  if (message.flowPreview) {
-    const cleanContent = message.content
-      ?.replace(/```flow_json[\s\S]*?```/gi, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return (
-      <div className="flex flex-col gap-3">
-        {cleanContent && <ChatMarkdown>{cleanContent}</ChatMarkdown>}
-        <AssistantFlowPreview flowPreview={message.flowPreview} />
-      </div>
     );
   }
 

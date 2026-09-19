@@ -21,10 +21,6 @@ import { useAssistantChat } from "../use-assistant-chat";
  * the behavior they pinned is exactly the bug. See git history / PR.
  */
 
-jest.mock("@xyflow/react", () => ({
-  useUpdateNodeInternals: () => () => {},
-}));
-
 const mockPostAssistStream = jest.fn();
 jest.mock("@/controllers/API/queries/agentic", () => ({
   postAssistStream: (...args: unknown[]) => mockPostAssistStream(...args),

@@ -8,6 +8,27 @@ import type {
   SessionHistoryEntry,
 } from "../assistant-panel.types";
 
+/** Fields of removed features (plans, flow proposals, build tasks, file cards,
+ * restore points) that sessions saved by older versions still carry. */
+const LEGACY_MESSAGE_KEYS = [
+  "flowPreview",
+  "flowActions",
+  "continuationExpected",
+  "pendingFlowProposal",
+  "autoAppliedFlow",
+  "flowProposalStatus",
+  "flowProposalSnapshot",
+  "pendingPlanProposal",
+  "planProposalStatus",
+  "writtenFiles",
+  "buildTasks",
+  "inProgressTask",
+  "hidden",
+  "restoreVersionId",
+  "reverted",
+  "wireContent",
+] as const;
+
 export function loadSessionsFromStorage(
   storageKey: string,
 ): SessionHistoryEntry[] {
@@ -37,17 +58,9 @@ export function serializeMessages(
   messages: AssistantMessage[],
 ): SerializedAssistantMessage[] {
   return messages.map((msg) => {
-    // flowProposalSnapshot is a full canvas clone that can blow the storage
-    // quota; cross-reload revert is covered by the restore-point path instead.
-    const {
-      timestamp,
-      progress,
-      result,
-      inProgressTask,
-      flowProposalSnapshot,
-      ...rest
-    } = msg;
-    const serialized: SerializedAssistantMessage = {
+    // Progress only drives the live loader; a saved turn has none.
+    const { timestamp, progress: _progress, ...rest } = msg;
+    return {
       ...rest,
       timestamp: timestamp.toISOString(),
       // Streaming/pending messages become cancelled when session is saved
@@ -56,23 +69,20 @@ export function serializeMessages(
           ? "cancelled"
           : msg.status,
     };
-    if (result) {
-      serialized.result = result;
-    }
-    // The spinner row is transient — persisting it stuck restored sessions.
-    // Error messages keep it on purpose (frozen "where it stopped" row).
-    if (msg.status === "error" && inProgressTask) {
-      serialized.inProgressTask = inProgressTask;
-    }
-    return serialized;
   });
 }
 
 export function deserializeMessages(
   serialized: SerializedAssistantMessage[],
 ): AssistantMessage[] {
-  return serialized.map((msg) => ({
-    ...msg,
-    timestamp: new Date(msg.timestamp),
-  }));
+  return serialized.map((msg) => {
+    const restored: AssistantMessage & Record<string, unknown> = {
+      ...msg,
+      timestamp: new Date(msg.timestamp),
+    };
+    for (const key of LEGACY_MESSAGE_KEYS) {
+      delete restored[key];
+    }
+    return restored;
+  });
 }

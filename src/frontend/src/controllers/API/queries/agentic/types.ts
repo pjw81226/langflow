@@ -1,20 +1,11 @@
 export type AgenticStepType =
   | "generating"
   | "generating_component"
-  | "generating_plan"
-  | "generating_flow"
-  | "orchestrating"
-  | "generation_complete"
   | "extracting_code"
   | "validating"
   | "validated"
   | "validation_failed"
   | "retrying"
-  | "searching_components"
-  | "building_flow"
-  | "flow_built"
-  | "flow_build_failed"
-  | "flow_proposal_ready"
   | "verifying_flow";
 
 export interface AgenticProgressEvent {
@@ -35,24 +26,16 @@ export interface AgenticTokenEvent {
 
 export interface AgenticCompleteData {
   result: string;
-  validated: boolean;
+  /** Component turns: the generated code passed validation. Missing = false. */
+  validated?: boolean;
   /** Echo of the request mode, when one was sent. */
   mode?: AssistantMode;
-  /** Prose-era verification outcome: absent when the flow was not test-run. */
-  verified?: boolean;
-  /** The sentence the backend also appends to `result` as "⚠️ …". */
-  verification_caveat?: string;
-  /** Structured outcome of the test run. Absent on servers that predate it. */
+  /** Test turns: the structured outcome of the run. */
   test_result?: AgenticTestResult;
   class_name?: string;
   component_code?: string;
   validation_attempts?: number;
   validation_error?: string;
-  has_flow?: boolean;
-  /** Backend-computed: a deferred step (e.g. run) was requested with an
-   * edit, so approving a man-in-the-loop edit should fire the continuation
-   * turn. Absent/false for a pure edit. */
-  continuation_expected?: boolean;
   /** Accumulated LLM token usage for the whole turn — TranslationFlow
    * classification + every agent attempt. Same shape as the playground's
    * message metadata (``properties.usage``) so the ``MessageMetadata`` badge
@@ -70,66 +53,6 @@ export interface AgenticCompleteData {
    * as an (i) next to the message so the swap is not hidden. Absent when the
    * chosen model worked. */
   notices?: AssistantModelNotice[];
-}
-
-export interface AgenticFlowPreviewEvent {
-  event: "flow_preview";
-  flow: Record<string, unknown>;
-  name: string;
-  node_count: number;
-  edge_count: number;
-  graph: string;
-}
-
-export interface AgenticFlowUpdateEvent {
-  event: "flow_update";
-  action:
-    | "add_component"
-    | "remove_component"
-    | "connect"
-    | "configure"
-    | "set_flow"
-    | "edit_field"
-    | "select_output"
-    | "set_connection_mode"
-    | "enable_tool_mode"
-    | "propose_plan";
-  /** Backend sets this on a compound-pipeline set_flow so the canvas is
-   * replaced directly (the user already asked to clear+replace it) —
-   * no Continue/Dismiss proposal card. */
-  auto_apply?: boolean;
-  [key: string]: unknown;
-}
-
-/**
- * Emitted the moment a canvas-mutating agent tool STARTS executing, so the
- * UI can show a live "currently doing X" row. Additive — the matching
- * flow_update (or the run ending) retires it.
- */
-export interface AgenticToolStartEvent {
-  event: "tool_start";
-  /** Backend tool name, e.g. "add_component", "build_flow". */
-  tool: string;
-  /** English fallback label; the UI prefers its own i18n by tool name. */
-  label?: string;
-  component_type?: string;
-  component_id?: string;
-  source_id?: string;
-  target_id?: string;
-  field?: string;
-}
-
-export interface FlowAction {
-  id: string;
-  type: "edit_field";
-  description: string;
-  component_id: string;
-  component_type: string;
-  field: string;
-  old_value: unknown;
-  new_value: unknown;
-  patch: { op: string; path: string; value: unknown }[];
-  status: "pending" | "applied" | "dismissed";
 }
 
 /** A silent, recovered model failure surfaced to the user. */
@@ -155,7 +78,7 @@ export interface AgenticCompleteEvent {
 export interface AgenticErrorDetail {
   /** Last progress step the backend emitted before failing. */
   step?: string;
-  /** Component the backend was building/running when it failed. */
+  /** Component the backend was running when it failed. */
   component_id?: string;
   /** Tool involved in the failure, when extractable. */
   tool?: string;
@@ -180,9 +103,6 @@ export type AgenticSSEEvent =
   | AgenticProgressEvent
   | AgenticTokenEvent
   | AgenticCompleteEvent
-  | AgenticFlowPreviewEvent
-  | AgenticFlowUpdateEvent
-  | AgenticToolStartEvent
   | AgenticErrorEvent
   | AgenticCancelledEvent;
 
@@ -242,9 +162,6 @@ export interface AgenticAssistRequest {
   mode?: AssistantMode;
   /** "test_flow" runs the canvas flow once instead of starting an agent turn. */
   action?: "test_flow";
-  /** The panel applies built flows without asking, so the agent should report
-   * a flow as added to the canvas rather than as a proposal. */
-  auto_apply?: boolean;
   /** {English label: label in the UI language}, sent with ask turns on a
    * translated UI so the agent can match labels to the English docs. */
   ui_glossary?: Record<string, string>;
@@ -267,7 +184,4 @@ export interface AgenticResult {
   componentCode?: string;
   validationError?: string;
   validationAttempts?: number;
-  hasFlow?: boolean;
-  flowData?: Record<string, unknown>;
-  flowName?: string;
 }

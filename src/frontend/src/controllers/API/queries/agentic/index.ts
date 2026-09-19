@@ -5,8 +5,6 @@ export type {
   AgenticCompleteEvent,
   AgenticErrorDetail,
   AgenticErrorEvent,
-  AgenticFlowPreviewEvent,
-  AgenticFlowUpdateEvent,
   AgenticProgressEvent,
   AgenticProgressState,
   AgenticResult,
@@ -16,9 +14,7 @@ export type {
   AgenticTestResult,
   AgenticTestStatus,
   AgenticTokenEvent,
-  AgenticToolStartEvent,
   AssistantMode,
   AssistantModelNotice,
-  FlowAction,
 } from "./types";
 export { postAssistStream } from "./use-post-assist-stream";

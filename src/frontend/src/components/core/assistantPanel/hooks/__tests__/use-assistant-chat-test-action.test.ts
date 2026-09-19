@@ -7,10 +7,6 @@ import { useAssistantChat } from "../use-assistant-chat";
  * and answers with a structured result, which the panel renders as a card.
  */
 
-jest.mock("@xyflow/react", () => ({
-  useUpdateNodeInternals: () => () => {},
-}));
-
 const callOrder: string[] = [];
 const mockPostAssistStream = jest.fn();
 jest.mock("@/controllers/API/queries/agentic", () => ({
@@ -132,29 +128,6 @@ describe("useAssistantChat — test flow", () => {
     expect(reply?.testResult).toEqual(testResult);
     expect(reply?.content).toBe("");
     expect(reply?.status).toBe("complete");
-  });
-
-  it("should_read_the_result_of_a_build_turn_and_drop_the_duplicate_caveat", async () => {
-    completeWith({
-      result: "Built the flow.\n\n⚠️ I couldn't fully run it here.",
-      validated: false,
-      has_flow: true,
-      verified: false,
-      verification_caveat: "I couldn't fully run it here.",
-      test_result: {
-        status: "needs_attention",
-        error: { kind: "external_resource" },
-      },
-    });
-    const { result } = renderHook(() => useAssistantChat());
-
-    await act(async () => {
-      await result.current.handleSend("build a chatbot", TEST_MODEL);
-    });
-
-    const reply = result.current.messages.find((m) => m.role === "assistant");
-    expect(reply?.content).toBe("Built the flow.");
-    expect(reply?.testResult?.status).toBe("needs_attention");
   });
 
   it("should_not_test_without_a_model_or_while_a_turn_is_running", async () => {

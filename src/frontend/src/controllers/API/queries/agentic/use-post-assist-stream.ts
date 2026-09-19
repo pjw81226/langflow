@@ -5,21 +5,15 @@ import type {
   AgenticCancelledEvent,
   AgenticCompleteEvent,
   AgenticErrorEvent,
-  AgenticFlowPreviewEvent,
-  AgenticFlowUpdateEvent,
   AgenticProgressEvent,
   AgenticSSEEvent,
   AgenticTokenEvent,
-  AgenticToolStartEvent,
 } from "./types";
 
 interface StreamCallbacks {
   onProgress?: (event: AgenticProgressEvent) => void;
   onToken?: (event: AgenticTokenEvent) => void;
   onComplete?: (event: AgenticCompleteEvent) => void;
-  onFlowPreview?: (event: AgenticFlowPreviewEvent) => void;
-  onFlowUpdate?: (event: AgenticFlowUpdateEvent) => void;
-  onToolStart?: (event: AgenticToolStartEvent) => void;
   onError?: (event: AgenticErrorEvent) => void;
   onCancelled?: (event: AgenticCancelledEvent) => void;
 }
@@ -62,24 +56,51 @@ function processSSELine(
     case "complete":
       callbacks.onComplete?.(event);
       return { done: true };
-    case "flow_preview":
-      callbacks.onFlowPreview?.(event);
-      break;
-    case "flow_update":
-      callbacks.onFlowUpdate?.(event);
-      break;
-    case "tool_start":
-      callbacks.onToolStart?.(event);
-      break;
     case "error":
       callbacks.onError?.(event);
       return { done: true };
     case "cancelled":
       callbacks.onCancelled?.(event);
       return { done: true };
+    // Anything else (flow_update, tool_start, ... from an older backend) is
+    // ignored: the panel has nothing to show for it.
   }
 
   return { done: false };
+}
+
+/**
+ * The message to show for a non-2xx response. FastAPI puts it in ``detail``:
+ * a string (e.g. the 403 when custom components are turned off), or an object
+ * or a list for structured errors, which must not reach the UI as
+ * "[object Object]".
+ */
+function errorMessageFromBody(body: string, fallback: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    // Error response is plain text, not JSON - use as-is
+    return body || fallback;
+  }
+  const { detail, message } = (parsed ?? {}) as {
+    detail?: unknown;
+    message?: unknown;
+  };
+  for (const candidate of [detail, message]) {
+    if (typeof candidate === "string" && candidate) return candidate;
+    if (candidate && typeof candidate === "object") {
+      const text = (Array.isArray(candidate) ? candidate : [candidate])
+        .map((item) => {
+          const entry = item as { message?: unknown; msg?: unknown } | null;
+          return entry?.message ?? entry?.msg;
+        })
+        .filter((part): part is string => typeof part === "string" && !!part)
+        .join(" ");
+      if (text) return text;
+    }
+  }
+  return fallback;
 }
 
 export async function postAssistStream(
@@ -102,19 +123,12 @@ export async function postAssistStream(
 
   if (!response.ok) {
     const errorText = await response.text();
-    let errorMessage = i18n.t("assistant.error.requestFailed");
-
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.detail || errorJson.message || errorMessage;
-    } catch {
-      // Error response is plain text, not JSON - use as-is
-      errorMessage = errorText || errorMessage;
-    }
-
     callbacks.onError?.({
       event: "error",
-      message: errorMessage,
+      message: errorMessageFromBody(
+        errorText,
+        i18n.t("assistant.error.requestFailed"),
+      ),
     });
     return;
   }

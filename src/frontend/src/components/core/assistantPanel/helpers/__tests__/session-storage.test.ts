@@ -1,15 +1,8 @@
 import type {
   AssistantMessage,
-  InProgressBuildTask,
+  SerializedAssistantMessage,
 } from "../../assistant-panel.types";
 import { deserializeMessages, serializeMessages } from "../session-storage";
-
-const inProgressTask: InProgressBuildTask = {
-  tool: "add_component",
-  label: "Adding component...",
-  componentType: "ChatInput",
-  receivedAt: 1234567890,
-};
 
 function makeMessage(
   overrides: Partial<AssistantMessage> = {},
@@ -24,67 +17,81 @@ function makeMessage(
 }
 
 describe("serializeMessages", () => {
-  it("should strip the transient inProgressTask from a streaming message", () => {
-    const serialized = serializeMessages([
-      makeMessage({ status: "streaming", inProgressTask }),
-    ]);
-
-    expect(serialized[0].inProgressTask).toBeUndefined();
-    // Streaming still becomes cancelled on save.
-    expect(serialized[0].status).toBe("cancelled");
-  });
-
-  it("should strip inProgressTask from a complete message", () => {
-    const serialized = serializeMessages([
-      makeMessage({ status: "complete", inProgressTask }),
-    ]);
-
-    expect(serialized[0].inProgressTask).toBeUndefined();
-  });
-
-  it("should keep inProgressTask on an error message (frozen where-it-stopped row)", () => {
-    const serialized = serializeMessages([
-      makeMessage({ status: "error", inProgressTask, error: "boom" }),
-    ]);
-
-    expect(serialized[0].inProgressTask).toEqual(inProgressTask);
-    expect(serialized[0].status).toBe("error");
-  });
-
-  it("round-trips an error message with its inProgressTask intact", () => {
-    const serialized = serializeMessages([
-      makeMessage({ status: "error", inProgressTask }),
-    ]);
-    const restored = deserializeMessages(serialized);
-
-    expect(restored[0].inProgressTask).toEqual(inProgressTask);
-    expect(restored[0].timestamp).toEqual(new Date("2026-07-08T12:00:00.000Z"));
-  });
-
-  it("round-trips a streaming message without resurrecting the spinner", () => {
-    const serialized = serializeMessages([
-      makeMessage({ status: "streaming", inProgressTask }),
-    ]);
-    const restored = deserializeMessages(serialized);
-
-    expect(restored[0].inProgressTask).toBeUndefined();
-    expect(restored[0].status).toBe("cancelled");
-  });
-
-  it("should strip the flowProposalSnapshot canvas clone from applied proposals", () => {
+  it("should strip the transient progress and cancel a streaming message", () => {
     const serialized = serializeMessages([
       makeMessage({
-        status: "complete",
-        flowProposalStatus: "applied",
-        flowProposalSnapshot: {
-          nodes: [{ id: "node-1" }],
-          edges: [{ id: "edge-1" }],
-        },
+        status: "streaming",
+        progress: { step: "generating_component", attempt: 1, maxAttempts: 3 },
       }),
     ]);
 
-    expect(serialized[0]).not.toHaveProperty("flowProposalSnapshot");
-    // The proposal state itself still persists so the card renders on restore.
-    expect(serialized[0].flowProposalStatus).toBe("applied");
+    expect(serialized[0]).not.toHaveProperty("progress");
+    expect(serialized[0].status).toBe("cancelled");
+  });
+
+  it("should keep everything else a finished turn shows", () => {
+    const message = makeMessage({
+      status: "complete",
+      mode: "ask",
+      notices: [{ type: "model_fallback", reason: "quota" }],
+      usage: { total_tokens: 12 },
+      validationAcknowledged: true,
+    });
+
+    const [serialized] = serializeMessages([message]);
+
+    expect(serialized).toMatchObject({
+      status: "complete",
+      mode: "ask",
+      notices: [{ type: "model_fallback", reason: "quota" }],
+      usage: { total_tokens: 12 },
+      validationAcknowledged: true,
+      timestamp: "2026-07-08T12:00:00.000Z",
+    });
+  });
+});
+
+describe("deserializeMessages", () => {
+  it("should drop the fields of removed features from an old session", () => {
+    // Sessions saved before plans, flow proposals, build tasks, file cards
+    // and restore points were removed still carry their fields.
+    const legacy = {
+      id: "msg-1",
+      role: "assistant",
+      content: "Built the flow.",
+      status: "complete",
+      timestamp: "2026-07-08T12:00:00.000Z",
+      flowPreview: { flow: {}, name: "Flow", nodeCount: 1, edgeCount: 0 },
+      flowActions: [{ id: "edit-1" }],
+      continuationExpected: true,
+      pendingFlowProposal: { flow: {}, nodeCount: 1, edgeCount: 0 },
+      autoAppliedFlow: { flow: {}, nodeCount: 1, edgeCount: 0 },
+      flowProposalStatus: "applied",
+      flowProposalSnapshot: { nodes: [], edges: [] },
+      pendingPlanProposal: { markdown: "## Plan" },
+      planProposalStatus: "pending",
+      writtenFiles: [{ path: "DOCS.md" }],
+      buildTasks: [{ action: "add_component" }],
+      inProgressTask: { tool: "add_component" },
+      hidden: true,
+      restoreVersionId: "ver-1",
+      reverted: false,
+      wireContent: "User approved the plan.",
+    } as unknown as SerializedAssistantMessage;
+
+    const [restored] = deserializeMessages([legacy]);
+
+    expect(Object.keys(restored).sort()).toEqual(
+      ["content", "id", "role", "status", "timestamp"].sort(),
+    );
+    expect(restored.timestamp).toEqual(new Date("2026-07-08T12:00:00.000Z"));
+  });
+
+  it("round-trips a current message unchanged", () => {
+    const message = makeMessage({ status: "complete", mode: "build" });
+
+    const [restored] = deserializeMessages(serializeMessages([message]));
+
+    expect(restored).toEqual(message);
   });
 });
