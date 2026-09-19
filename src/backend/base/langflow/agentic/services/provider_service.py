@@ -234,11 +234,30 @@ def _preferred_model(provider: str, available: list[str]) -> str | None:
     return next((name for name in ASSISTANT_PREFERRED_MODELS.get(provider, ()) if name in offered), None)
 
 
+def _deployment_default_model(provider: str, available: list[str]) -> str | None:
+    """The model the deployment named in ``LANGFLOW_ASSISTANT_DEFAULT_MODEL``, if it applies.
+
+    It applies when it names this provider and a model the provider actually offers.
+    The panel reads the same setting through ``/api/v1/config``, so the UI and the
+    headless callers (MCP, ``/assist/run``) agree on one default.
+    """
+    from lfx.services.deps import get_settings_service
+
+    configured = (getattr(get_settings_service().settings, "assistant_default_model", "") or "").strip()
+    configured_provider, separator, model = configured.partition(":")
+    if not separator or configured_provider.strip() != provider:
+        return None
+    model = model.strip()
+    return model if model in available else None
+
+
 def get_default_model(provider: str, user_id: UUID | str | None = None) -> str | None:
     """Get the default model for a provider.
 
-    Prefers the provider's strongest agent model (``ASSISTANT_PREFERRED_MODELS``) so the
-    out-of-the-box pick is never one the composer flags as weak. For live providers
+    A model the deployment configured (``LANGFLOW_ASSISTANT_DEFAULT_MODEL``) wins while
+    the provider offers it. Otherwise prefers the provider's strongest agent model
+    (``ASSISTANT_PREFERRED_MODELS``) so the out-of-the-box pick is never one the composer
+    flags as weak. For live providers
     (Ollama, WatsonX, OpenRouter) with a ``user_id`` the choice is constrained to models
     actually installed/available — the catalog default may not exist on the user's server.
     """
@@ -257,10 +276,13 @@ def get_default_model(provider: str, user_id: UUID | str | None = None) -> str |
 
     installed = list_installed_tool_calling_models(provider, user_id)
     if installed:
-        return _preferred_model(provider, installed) or (
-            catalog_default if catalog_default in installed else installed[0]
+        return (
+            _deployment_default_model(provider, installed)
+            or _preferred_model(provider, installed)
+            or (catalog_default if catalog_default in installed else installed[0])
         )
-    return _preferred_model(provider, _catalog_model_names(provider)) or catalog_default
+    catalog = _catalog_model_names(provider)
+    return _deployment_default_model(provider, catalog) or _preferred_model(provider, catalog) or catalog_default
 
 
 def build_live_only_provider_entries(

@@ -11,6 +11,36 @@ from .model_metadata import create_model_metadata
 
 # Unified model metadata - single source of truth
 OPENAI_MODELS_DETAILED = [
+    # GPT-5.6 Series (released 2026-07-09): sol is the full-size model and what the
+    # bare ``gpt-5.6`` alias resolves to, terra the mid tier, luna the small one.
+    create_model_metadata(
+        provider="OpenAI",
+        name="gpt-5.6",
+        icon="OpenAI",
+        tool_calling=True,
+        reasoning=True,
+    ),
+    create_model_metadata(
+        provider="OpenAI",
+        name="gpt-5.6-sol",
+        icon="OpenAI",
+        tool_calling=True,
+        reasoning=True,
+    ),
+    create_model_metadata(
+        provider="OpenAI",
+        name="gpt-5.6-terra",
+        icon="OpenAI",
+        tool_calling=True,
+        reasoning=True,
+    ),
+    create_model_metadata(
+        provider="OpenAI",
+        name="gpt-5.6-luna",
+        icon="OpenAI",
+        tool_calling=True,
+        reasoning=True,
+    ),
     # GPT-5.4 Series
     create_model_metadata(
         provider="OpenAI",
