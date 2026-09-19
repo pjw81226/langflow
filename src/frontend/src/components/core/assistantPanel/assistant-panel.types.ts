@@ -19,6 +19,10 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** What was actually sent to the backend when it differs from the shown
+   * ``content`` (protocol strings such as the plan approval signal). A retry
+   * must resend this, never the localized display text. */
+  wireContent?: string;
   timestamp: Date;
   status?: AssistantMessageStatus;
   progress?: AgenticProgressState;

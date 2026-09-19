@@ -151,6 +151,9 @@ export function useAssistantChat(
         silent?: boolean;
         internal?: boolean;
         reuseAssistantMessageId?: string;
+        /** Localized text for the user bubble when ``content`` is a backend
+         * protocol string that must reach the server byte-identical. */
+        displayContent?: string;
       },
     ) => {
       // ``internal`` bypasses the processing guard to avoid the unmount blink.
@@ -212,10 +215,12 @@ export function useAssistantChat(
 
       lastModelRef.current = model;
 
+      const displayContent = options?.displayContent;
       const userMessage: AssistantMessage = {
         id: uid.randomUUID(10),
         role: "user",
-        content,
+        content: displayContent ?? content,
+        ...(displayContent !== undefined ? { wireContent: content } : {}),
         timestamp: new Date(),
         status: "complete",
       };
@@ -594,7 +599,13 @@ export function useAssistantChat(
 
       // Remove the failed assistant message so a fresh one is created by handleSend
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
-      void handleSend(userMessage.content, lastModel);
+      void handleSend(
+        userMessage.wireContent ?? userMessage.content,
+        lastModel,
+        userMessage.wireContent !== undefined
+          ? { displayContent: userMessage.content }
+          : undefined,
+      );
     },
     [messages, handleSend],
   );
@@ -727,9 +738,12 @@ export function useAssistantChat(
       updateMessage(messageId, () => ({
         planProposalStatus: "approved" as const,
       }));
-      await handleSend(SKIP_ALL_APPROVAL_TEXT, lastModelRef.current);
+      // The protocol string goes to the backend; the bubble shows a localized line.
+      await handleSend(SKIP_ALL_APPROVAL_TEXT, lastModelRef.current, {
+        displayContent: t("assistant.plan.approvalMessage"),
+      });
     },
-    [updateMessage, handleSend],
+    [updateMessage, handleSend, t],
   );
   // Same trick as handleApplyFlowProposalRef — drained by onComplete.
   handleApprovePlanRef.current = handleApprovePlan;

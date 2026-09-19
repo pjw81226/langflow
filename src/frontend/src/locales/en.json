@@ -2184,6 +2184,7 @@
   "assistant.plan.sendChanges": "Send your changes…",
   "assistant.plan.reset": "Reset",
   "assistant.plan.approved": "Plan approved",
+  "assistant.plan.approvalMessage": "Plan approved. Go ahead and build it.",
   "assistant.flowEdit.title": "Proposed Changes",
   "assistant.flowEdit.emptyValue": "(empty)",
   "assistant.flowEdit.showMore": "Show more",
