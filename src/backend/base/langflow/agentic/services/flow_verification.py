@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from langflow.agentic.services.flow_probe_input import apply_probe_input
+from langflow.agentic.services.flow_probe_input import PROBE_INPUT_TEXT, apply_probe_input
 from langflow.agentic.services.flow_run_error_classification import (
     RunErrorKind,
     classify_run_error,
@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 # log. Conservative on purpose (over-redact rather than leak).
 _SECRET_RE = re.compile(r"\b(sk|rk|pk|key|token|bearer)[-_ ]?[A-Za-z0-9_\-]{8,}\b", re.IGNORECASE)
 _MAX_CAVEAT_ERROR_CHARS = 300
+_MAX_OUTPUT_PREVIEW_CHARS = 500
 
 
 class FlowVerificationStatus(Enum):
@@ -49,6 +50,15 @@ class FlowVerificationResult:
     attempts: int
     caveat: str | None
     flow: dict
+    # What the last run actually showed. The loop used to keep only the prose
+    # caveat; a test report needs the parts, so they are carried along. All
+    # optional, so every existing four-argument construction still holds.
+    error: str | None = None  # redacted message of the last failed run
+    error_kind: str | None = None  # RunErrorKind value of that failure
+    error_component: str | None = None  # display name of the component it failed in
+    output: str | None = None  # result text of the successful run
+    metrics: dict = field(default_factory=dict)  # duration and token usage of the last run
+    probe_input: str | None = None  # probe text, when an empty Chat Input was filled
 
 
 def _redact(text: str) -> str:
@@ -56,6 +66,16 @@ def _redact(text: str) -> str:
     scrubbed = _SECRET_RE.sub("***", text or "")
     if len(scrubbed) > _MAX_CAVEAT_ERROR_CHARS:
         scrubbed = scrubbed[: _MAX_CAVEAT_ERROR_CHARS - 1].rstrip() + "…"
+    return scrubbed
+
+
+def _redact_output(text: object) -> str | None:
+    """Short, secret-free preview of what a successful run produced."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    scrubbed = _SECRET_RE.sub("***", text.strip())
+    if len(scrubbed) > _MAX_OUTPUT_PREVIEW_CHARS:
+        scrubbed = scrubbed[: _MAX_OUTPUT_PREVIEW_CHARS - 1].rstrip() + "…"
     return scrubbed
 
 
@@ -179,18 +199,37 @@ async def verify_built_flow(
     current = flow
     last_error = "unknown error"
     attempt = 0
+    probe_input: str | None = None
+    failure: dict = {}
     while attempt < max_attempts:
         attempt += 1
-        apply_probe_input(current)
+        if apply_probe_input(current):
+            probe_input = PROBE_INPUT_TEXT
         result = await run_fn(current)
+        metrics = result.get("metrics") or {}
         if "error" not in result:
-            return FlowVerificationResult(FlowVerificationStatus.PASSED, attempt, None, current)
+            return FlowVerificationResult(
+                FlowVerificationStatus.PASSED,
+                attempt,
+                None,
+                current,
+                output=_redact_output(result.get("result")),
+                metrics=metrics,
+                probe_input=probe_input,
+            )
 
         last_error = result.get("error") or "unknown error"
         kind = classify_run_error(last_error)
+        failure = {
+            "error": _redact(last_error),
+            "error_kind": kind.value,
+            "error_component": result.get("error_component"),
+            "metrics": metrics,
+            "probe_input": probe_input,
+        }
         if kind in (RunErrorKind.EXTERNAL_RESOURCE, RunErrorKind.TIMEOUT):
             return FlowVerificationResult(
-                FlowVerificationStatus.NEEDS_CAVEAT, attempt, _external_caveat(last_error), current
+                FlowVerificationStatus.NEEDS_CAVEAT, attempt, _external_caveat(last_error), current, **failure
             )
 
         if attempt >= max_attempts:
@@ -204,4 +243,6 @@ async def verify_built_flow(
             break
         current = fixed
 
-    return FlowVerificationResult(FlowVerificationStatus.FAILED, attempt, _failed_caveat(attempt, last_error), current)
+    return FlowVerificationResult(
+        FlowVerificationStatus.FAILED, attempt, _failed_caveat(attempt, last_error), current, **failure
+    )

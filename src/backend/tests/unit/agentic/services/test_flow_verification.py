@@ -9,6 +9,8 @@ leak secrets in the caveat.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 from langflow.agentic.services.flow_probe_input import PROBE_INPUT_TEXT
 from langflow.agentic.services.flow_verification import (
@@ -246,3 +248,73 @@ class TestVerifyLoopStructure:
 
         assert result.status is FlowVerificationStatus.NEEDS_CAVEAT
         assert calls["n"] == 1  # gave up after the first fix returned nothing
+
+
+class TestVerificationKeepsWhatTheRunShowed:
+    """The loop used to return only a prose caveat; a test report needs the parts."""
+
+    @pytest.mark.asyncio
+    async def test_a_pass_keeps_the_output_the_metrics_and_the_probe(self):
+        flow = {
+            "data": {
+                "nodes": [
+                    {
+                        "id": "ChatInput-1",
+                        "data": {"type": "ChatInput", "node": {"template": {"input_value": {"value": ""}}}},
+                    }
+                ]
+            }
+        }
+        run = AsyncMock(return_value={"result": "Hi!", "metrics": {"duration_seconds": 2.0, "total_tokens": 9}})
+
+        result = await verify_built_flow(flow=flow, run_fn=run, fix_fn=AsyncMock())
+
+        assert result.status is FlowVerificationStatus.PASSED
+        assert result.output == "Hi!"
+        assert result.metrics == {"duration_seconds": 2.0, "total_tokens": 9}
+        assert result.probe_input == "Hello"
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_no_probe_is_reported_when_the_chat_input_already_had_a_value(self):
+        flow = {
+            "data": {
+                "nodes": [
+                    {
+                        "id": "ChatInput-1",
+                        "data": {"type": "ChatInput", "node": {"template": {"input_value": {"value": "set by user"}}}},
+                    }
+                ]
+            }
+        }
+
+        result = await verify_built_flow(flow=flow, run_fn=AsyncMock(return_value={"result": "ok"}), fix_fn=AsyncMock())
+
+        assert result.probe_input is None
+
+    @pytest.mark.asyncio
+    async def test_a_failure_keeps_its_kind_component_and_redacted_message(self):
+        run = AsyncMock(
+            return_value={
+                "error": "Incorrect API key provided: sk-abcdefghijklmnop",
+                "error_component": "Agent",
+                "metrics": {"duration_seconds": 0.4},
+            }
+        )
+
+        result = await verify_built_flow(flow={"data": {"nodes": []}}, run_fn=run, fix_fn=AsyncMock())
+
+        assert result.status is FlowVerificationStatus.NEEDS_CAVEAT
+        assert result.error_kind == "external_resource"
+        assert result.error_component == "Agent"
+        assert result.metrics == {"duration_seconds": 0.4}
+        assert "sk-abcdefghijklmnop" not in result.error
+
+    @pytest.mark.asyncio
+    async def test_a_long_or_secret_bearing_output_is_trimmed_for_the_preview(self):
+        run = AsyncMock(return_value={"result": "token sk-abcdefghijklmnop " + "x" * 900})
+
+        result = await verify_built_flow(flow={"data": {"nodes": []}}, run_fn=run, fix_fn=AsyncMock())
+
+        assert "sk-abcdefghijklmnop" not in result.output
+        assert len(result.output) <= 500

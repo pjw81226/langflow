@@ -280,3 +280,120 @@ class TestFlowVerificationDeliversHonestCaveat:
 
         run.assert_not_called()  # kill switch → no verification run
         assert "verification_caveat" not in "\n".join(events)
+
+
+class TestStructuredTestResult:
+    """The panel renders a result card from ``test_result`` instead of parsing the caveat."""
+
+    async def _build_turn(self, run):
+        with (
+            patch(f"{MODULE}.classify_intent", AsyncMock(return_value=_intent("build_flow"))),
+            patch(f"{MODULE}.execute_flow_file_streaming", MagicMock(side_effect=lambda **_k: _stream_end())),
+            patch(f"{MODULE}.drain_flow_events", side_effect=_drain_set_flow_once()),
+            patch(f"{MODULE}.extract_response_text", return_value="Flow built."),
+            patch(f"{MODULE}.get_working_flow", return_value=_BUILT_FLOW),
+            patch(f"{MODULE}.run_working_flow", run),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            return await _collect(
+                execute_flow_with_validation_streaming(
+                    flow_filename="flow_builder_assistant",
+                    input_value="build me a chat flow",
+                    global_variables={"FLOW_ID": "11111111-1111-1111-1111-111111111111"},
+                    max_retries=1,
+                )
+            )
+
+    @pytest.mark.asyncio
+    async def test_a_passing_run_is_reported_with_its_output_and_duration(self):
+        run = AsyncMock(return_value={"result": "Hi there!", "metrics": {"duration_seconds": 2.5}})
+
+        events = await self._build_turn(run)
+
+        test_result = _complete_payload(events)["data"]["test_result"]
+        assert test_result["status"] == "passed"
+        assert test_result["trigger"] == "build"
+        assert test_result["output_preview"] == "Hi there!"
+        assert test_result["duration_seconds"] == 2.5
+        assert test_result["probe_input"] == "Hello"
+
+    @pytest.mark.asyncio
+    async def test_a_missing_credential_is_reported_as_needing_attention(self):
+        run = AsyncMock(return_value={"error": "Incorrect API key provided", "error_component": "Agent"})
+
+        events = await self._build_turn(run)
+
+        data = _complete_payload(events)["data"]
+        # The prose twin stays for older clients.
+        assert data["verified"] is False
+        assert data["test_result"]["status"] == "needs_attention"
+        assert data["test_result"]["error"]["kind"] == "external_resource"
+        assert data["test_result"]["error"]["component_name"] == "Agent"
+
+    @pytest.mark.asyncio
+    async def test_the_panel_is_told_the_flow_is_being_tested_before_the_run(self):
+        run = AsyncMock(return_value={"result": "ok"})
+
+        events = await self._build_turn(run)
+
+        steps = [json.loads(e.split("data: ", 1)[1]).get("step") for e in events if '"event": "progress"' in e]
+        assert "verifying_flow" in steps
+        assert steps.index("verifying_flow") < len(steps)
+        blob = "\n".join(events)
+        assert blob.index('"verifying_flow"') < blob.index('"event": "complete"')
+
+    @pytest.mark.asyncio
+    async def test_an_edit_turn_is_reported_as_not_tested(self):
+        """Editing an existing flow never runs it behind the user's back."""
+        run = AsyncMock()
+        state = {"done": False}
+
+        def drain_edit_once():
+            if state["done"]:
+                return []
+            state["done"] = True
+            return [{"action": "configure", "component_id": "Agent-1", "field": "system_prompt", "value": "x"}]
+
+        with (
+            patch(f"{MODULE}.classify_intent", AsyncMock(return_value=_intent("build_flow"))),
+            patch(f"{MODULE}.execute_flow_file_streaming", MagicMock(side_effect=lambda **_k: _stream_end())),
+            patch(f"{MODULE}.drain_flow_events", side_effect=drain_edit_once),
+            patch(f"{MODULE}.extract_response_text", return_value="Updated the prompt."),
+            patch(f"{MODULE}.get_working_flow", return_value=_BUILT_FLOW),
+            patch(f"{MODULE}.run_working_flow", run),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            events = await _collect(
+                execute_flow_with_validation_streaming(
+                    flow_filename="flow_builder_assistant",
+                    input_value="make the agent friendlier",
+                    global_variables={"FLOW_ID": "11111111-1111-1111-1111-111111111111"},
+                    max_retries=1,
+                )
+            )
+
+        run.assert_not_awaited()
+        assert _complete_payload(events)["data"]["test_result"] == {
+            "status": "skipped",
+            "trigger": "build",
+            "skipped_reason": "edit_not_verified",
+        }
+
+    @pytest.mark.asyncio
+    async def test_a_question_carries_no_test_result(self):
+        with (
+            patch(f"{MODULE}.classify_intent", AsyncMock(return_value=_intent("question"))),
+            patch(f"{MODULE}.execute_flow_file_streaming", MagicMock(side_effect=lambda **_k: _stream_end())),
+            patch(f"{MODULE}.drain_flow_events", return_value=[]),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            events = await _collect(
+                execute_flow_with_validation_streaming(
+                    flow_filename="TestFlow",
+                    input_value="what is an Agent?",
+                    global_variables={},
+                    max_retries=1,
+                )
+            )
+
+        assert "test_result" not in _complete_payload(events)["data"]

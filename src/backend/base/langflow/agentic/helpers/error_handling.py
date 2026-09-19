@@ -187,6 +187,17 @@ _COMPONENT_WRAPPER_RE = re.compile(r"Error building Component ([^:\n]+):")
 _TOOL_NAME_RE = re.compile(r"""tool ['"]([\w.\- ]+)['"]""", re.IGNORECASE)
 
 
+def extract_failed_component_name(error_msg: str | None) -> str | None:
+    """Display name of the component a run failed in, when the engine named it.
+
+    The graph wraps a build failure as ``Error building Component <display name>:``.
+    That name is what the user sees on the canvas, so it is the most useful thing a
+    failed test can point at.
+    """
+    match = _COMPONENT_WRAPPER_RE.search(error_msg or "")
+    return match.group(1).strip() if match else None
+
+
 def get_error_recommendation(error_msg: str) -> str | None:
     """Return the recommended next step for a known error category, else None."""
     error_lower = error_msg.lower()

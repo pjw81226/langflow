@@ -189,6 +189,30 @@ class TestRunWorkingFlow:
         assert "result" not in out
 
     @pytest.mark.asyncio
+    async def test_run_error_reports_how_long_it_ran_and_which_component_failed(self):
+        """A test report points at the node that broke; only the raw error names it."""
+        raw = "Error building Component Web Search: \n\nConnection refused"
+        with (
+            patch(f"{MODULE}.build_graph_from_data", new_callable=AsyncMock, return_value=object()),
+            patch(f"{MODULE}.run_graph_internal", side_effect=RuntimeError(raw)),
+        ):
+            out = await run_working_flow(flow_data=_FLOW, flow_id="flow-1", user_id="u1")
+
+        assert out["error_component"] == "Web Search"
+        assert out["metrics"]["duration_seconds"] >= 0
+        assert "total_tokens" in out["metrics"]
+
+    @pytest.mark.asyncio
+    async def test_run_error_without_a_named_component_omits_the_field(self):
+        with (
+            patch(f"{MODULE}.build_graph_from_data", new_callable=AsyncMock, return_value=object()),
+            patch(f"{MODULE}.run_graph_internal", side_effect=RuntimeError("boom")),
+        ):
+            out = await run_working_flow(flow_data=_FLOW, flow_id="flow-1", user_id="u1")
+
+        assert "error_component" not in out
+
+    @pytest.mark.asyncio
     async def test_timeout_returns_error_not_hang(self):
         async def hang(*_a, **_kw):
             await asyncio.sleep(10)

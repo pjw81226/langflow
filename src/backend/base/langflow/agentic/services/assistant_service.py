@@ -81,6 +81,8 @@ from langflow.agentic.services.flow_structural_validation import (
     FLOW_STRUCTURE_RETRY_TEMPLATE,
     structural_failures,
 )
+from langflow.agentic.services.flow_test_result import from_verification as test_result_from_verification
+from langflow.agentic.services.flow_test_result import skipped as test_result_skipped
 from langflow.agentic.services.flow_types import (
     ASK_ASSISTANT_FLOW,
     ASK_MODE_PREAMBLE,
@@ -1507,6 +1509,14 @@ async def execute_flow_with_validation_streaming(
                 # success. Skipped (returns None) when the kill switch is
                 # off / no FLOW_ID / empty canvas → unchanged behavior.
                 if is_flow_request and saw_set_flow:
+                    # The test run can take minutes; without a step the panel
+                    # would sit silent after "flow built".
+                    yield format_progress_event(
+                        "verifying_flow",
+                        attempt + 1,
+                        total_attempts,
+                        message="Testing the flow...",
+                    )
                     verification, shape_before = await _verify_flow_before_delivery(
                         flow_filename=flow_filename,
                         global_variables=global_variables,
@@ -1527,6 +1537,14 @@ async def execute_flow_with_validation_streaming(
                         }
                     elif verification is not None:
                         result = {**result, "verified": True}
+                    # Structured twin of the prose caveat, so the panel can render a
+                    # result card (and translate it) instead of parsing text.
+                    result = {
+                        **result,
+                        "test_result": test_result_from_verification(verification)
+                        if verification is not None
+                        else test_result_skipped("no_flow" if _flow_verification_enabled() else "disabled"),
+                    }
                     if verification is not None and shape_before is not None:
                         result = _append_verification_rebuild_notice(
                             result, shape_before, _flow_shape(verification.flow)
@@ -1552,6 +1570,12 @@ async def execute_flow_with_validation_streaming(
                         total_attempts,
                         message="Flow ready — review and continue",
                     )
+                if is_flow_request and not saw_set_flow and not saw_run:
+                    # Incremental edits to an existing flow are not run automatically:
+                    # that flow may send mail or write to a database. The panel shows
+                    # "Not tested yet" and lets the user start the test. Not when the
+                    # agent ran the flow itself this turn: its answer reports that run.
+                    result = {**result, "test_result": test_result_skipped("edit_not_verified")}
                 # Honest surfacing: if a generate_component sub-task failed this
                 # turn but we still delivered a flow (the agent substituted),
                 # the user must be told — never claim a flow is ready while

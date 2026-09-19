@@ -33,7 +33,7 @@ from typing import Any
 from lfx.observability import execution_protocol
 
 from langflow.agentic.helpers.code_security import scan_code_security
-from langflow.agentic.helpers.error_handling import extract_friendly_error
+from langflow.agentic.helpers.error_handling import extract_failed_component_name, extract_friendly_error
 from langflow.api.utils.flow_utils import build_graph_from_data
 from langflow.processing.process import run_graph_internal
 
@@ -277,7 +277,19 @@ async def run_working_flow(*, flow_data: dict, flow_id: str, user_id: str | None
         # raw text (truncated; no api keys appear in model errors) is what
         # tells a model-name/casing bug apart from a real access problem.
         logger.warning("assistant.run_flow.failed flow_id=%s friendly=%r raw=%r", flow_id, friendly, raw[:500])
-        return {"error": friendly}
+        # How long it ran and which component broke are what a test report shows;
+        # both are known only here, so they ride along with the friendly message.
+        failure: dict[str, Any] = {
+            "error": friendly,
+            "metrics": {
+                "duration_seconds": round(perf_counter() - started, 3),
+                **extract_graph_token_usage(graph),
+            },
+        }
+        failed_component = extract_failed_component_name(raw)
+        if failed_component:
+            failure["error_component"] = failed_component
+        return failure
 
     # Wall time measured around the actual run — the only reliable source
     # (ResultData.timedelta is never populated on the returned output
