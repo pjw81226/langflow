@@ -3,7 +3,6 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsFlowReadOnly } from "@/contexts/permissionsContext";
 import type { AgenticStepType } from "@/controllers/API/queries/agentic";
-import useAssistantManagerStore from "@/stores/assistantManagerStore";
 import useFlowStore from "@/stores/flowStore";
 import { usePlaygroundStore } from "@/stores/playgroundStore";
 import { useUtilityStore } from "@/stores/utilityStore";
@@ -159,8 +158,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     if (!isOpen || isDocked) return;
 
     const handleClickOutside = (e: PointerEvent) => {
-      // A running turn locks the canvas and disables the toggle button, so a
-      // stray click here would leave only the hotkey to get the panel back.
+      // Keep a running turn in view: a stray click on the canvas while the
+      // reply streams would hide it. The toggle button still closes the panel.
       if (isProcessing) return;
       const target = e.target as Node;
       // Don't close if clicking inside the panel
@@ -251,25 +250,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     }
     return undefined;
   }, [messages]);
-
-  // Sync processing state to store so the canvas can lock during assistant work
-  const setAssistantProcessing = useAssistantManagerStore(
-    (state) => state.setAssistantProcessing,
-  );
-  // An ask turn is read-only and a test turn only runs the flow, so the canvas
-  // stays editable while either streams. Messages stored before modes existed
-  // carry none and count as build turns.
-  const streamingMessage = messages.find(
-    (m) => m.role === "assistant" && m.status === "streaming",
-  );
-  const locksCanvas =
-    isProcessing &&
-    streamingMessage?.mode !== "ask" &&
-    streamingMessage?.action !== "test_flow";
-  useEffect(() => {
-    setAssistantProcessing(locksCanvas);
-    return () => setAssistantProcessing(false);
-  }, [locksCanvas, setAssistantProcessing]);
 
   const { sessions, saveCurrentSession, switchSession, deleteSession } =
     useSessionHistory(sessionId, messages, loadSession);

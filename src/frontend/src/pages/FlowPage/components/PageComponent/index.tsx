@@ -44,7 +44,6 @@ import { useFlowEvents } from "@/hooks/flows/use-flow-events";
 import useUploadFlow from "@/hooks/flows/use-upload-flow";
 import { useAddComponent } from "@/hooks/use-add-component";
 import InspectionPanel from "@/pages/FlowPage/components/InspectionPanel";
-import useAssistantManagerStore from "@/stores/assistantManagerStore";
 import { nodeColorsName } from "@/utils/styleUtils";
 import { isSupportedNodeTypes } from "@/utils/utils";
 import ExportModal from "../../../../modals/exportModal";
@@ -228,11 +227,7 @@ export default function Page({
   const { isAgentWorking, events, lastSettledAt, clearEvents } = useFlowEvents(
     currentFlowId || undefined,
   );
-  const isAssistantProcessing = useAssistantManagerStore(
-    (state) => state.isAssistantProcessing,
-  );
-  const effectiveLocked =
-    isLocked || isPermissionReadOnly || isAgentWorking || isAssistantProcessing;
+  const effectiveLocked = isLocked || isPermissionReadOnly || isAgentWorking;
 
   // Keep banner mounted during exit animation, preserve last text
   const [bannerVisible, setBannerVisible] = useState(false);

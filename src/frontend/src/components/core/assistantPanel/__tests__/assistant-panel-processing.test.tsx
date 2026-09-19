@@ -4,7 +4,6 @@ import type { AssistantMessage } from "../assistant-panel.types";
 
 let mockIsProcessing = false;
 let mockMessages: AssistantMessage[] = [];
-const mockSetAssistantProcessing = jest.fn();
 const mockSetAssistantDocked = jest.fn();
 let mockDockDefault = false;
 
@@ -18,16 +17,8 @@ jest.mock("@/contexts/permissionsContext", () => ({
 
 jest.mock("@/stores/assistantManagerStore", () => ({
   __esModule: true,
-  default: (
-    selector: (state: {
-      setAssistantProcessing: jest.Mock;
-      setAssistantDocked: jest.Mock;
-    }) => unknown,
-  ) =>
-    selector({
-      setAssistantProcessing: mockSetAssistantProcessing,
-      setAssistantDocked: mockSetAssistantDocked,
-    }),
+  default: (selector: (state: { setAssistantDocked: jest.Mock }) => unknown) =>
+    selector({ setAssistantDocked: mockSetAssistantDocked }),
 }));
 
 jest.mock("@/stores/flowStore", () => ({
@@ -121,27 +112,6 @@ jest.mock("../hooks", () => ({
   }),
 }));
 
-function streamingReply(mode?: "build" | "ask"): AssistantMessage[] {
-  return [
-    {
-      id: "user-1",
-      role: "user",
-      content: "hello",
-      timestamp: new Date(),
-      status: "complete",
-      mode,
-    },
-    {
-      id: "assistant-1",
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-      status: "streaming",
-      mode,
-    },
-  ];
-}
-
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
@@ -152,60 +122,6 @@ beforeEach(() => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1440,
-  });
-});
-
-describe("AssistantPanel canvas lock", () => {
-  it("should_lock_the_canvas_while_a_build_turn_streams", () => {
-    mockIsProcessing = true;
-    mockMessages = streamingReply("build");
-
-    render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(true);
-  });
-
-  it("should_leave_the_canvas_editable_while_an_ask_turn_streams", () => {
-    mockIsProcessing = true;
-    mockMessages = streamingReply("ask");
-
-    render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
-    expect(mockSetAssistantProcessing).not.toHaveBeenCalledWith(true);
-  });
-
-  it("should_leave_the_canvas_editable_while_a_flow_test_runs", () => {
-    // A test only runs the flow; nothing on the canvas can change.
-    mockIsProcessing = true;
-    mockMessages = streamingReply("build").map((message) => ({
-      ...message,
-      action: "test_flow" as const,
-    }));
-
-    render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
-  });
-
-  it("should_treat_a_turn_without_a_mode_as_a_build_turn", () => {
-    // Sessions saved before modes existed.
-    mockIsProcessing = true;
-    mockMessages = streamingReply(undefined);
-
-    render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(true);
-  });
-
-  it("should_release_the_lock_when_the_panel_unmounts_mid_turn", () => {
-    mockIsProcessing = true;
-    mockMessages = streamingReply("build");
-
-    const { unmount } = render(<AssistantPanel isOpen onClose={jest.fn()} />);
-    unmount();
-
-    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
   });
 });
 
@@ -220,8 +136,8 @@ describe("AssistantPanel outside click", () => {
   });
 
   it("should_stay_open_when_the_canvas_is_clicked_during_a_turn", () => {
-    // The canvas toggle is disabled while a turn runs, so closing here would
-    // leave the hotkey as the only way back to the streaming reply.
+    // A stray click on the canvas must not hide the reply the user is waiting
+    // on. The toggle button still closes the panel.
     mockIsProcessing = true;
     const onClose = jest.fn();
     render(<AssistantPanel isOpen onClose={onClose} />);

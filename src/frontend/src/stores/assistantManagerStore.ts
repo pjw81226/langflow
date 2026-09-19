@@ -60,10 +60,6 @@ const useAssistantManagerStore = create<AssistantManagerStoreType>(
     setAssistantSidebarOpen: (assistantSidebarOpen: boolean) => {
       set({ assistantSidebarOpen });
     },
-    isAssistantProcessing: false,
-    setAssistantProcessing: (isAssistantProcessing: boolean) => {
-      set({ isAssistantProcessing });
-    },
     assistantDocked: false,
     setAssistantDocked: (assistantDocked: boolean) => {
       set({ assistantDocked });

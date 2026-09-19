@@ -11,7 +11,6 @@ const SAVED_MODEL: AssistantModel = {
 };
 
 const mockHandleSend = jest.fn();
-const mockSetAssistantProcessing = jest.fn();
 let mockCatalogReady = true;
 let mockHasEnabledModels = true;
 let mockModelAllowed = true;
@@ -31,16 +30,8 @@ jest.mock("@/contexts/permissionsContext", () => ({
 
 jest.mock("@/stores/assistantManagerStore", () => ({
   __esModule: true,
-  default: (
-    selector: (state: {
-      setAssistantProcessing: jest.Mock;
-      setAssistantDocked: jest.Mock;
-    }) => unknown,
-  ) =>
-    selector({
-      setAssistantProcessing: mockSetAssistantProcessing,
-      setAssistantDocked: jest.fn(),
-    }),
+  default: (selector: (state: { setAssistantDocked: jest.Mock }) => unknown) =>
+    selector({ setAssistantDocked: jest.fn() }),
 }));
 
 jest.mock("@/stores/flowStore", () => ({
