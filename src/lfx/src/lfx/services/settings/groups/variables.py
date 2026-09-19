@@ -56,15 +56,10 @@ class VariablesSettings(BaseModel):
     """Model the Langflow Assistant uses for Ask-mode turns, as ``Provider:model``. Empty uses
     the model selected in the panel.
 
-    Building a flow drives a long agent loop and needs a strong model. Answering a question
-    from the docs does not, so a deployment can point Ask at a much cheaper one. Ignored, with
-    a warning, when that provider is not configured for the user.
+    Writing a component or a prompt needs a strong model. Answering a question from the docs
+    does not, so a deployment can point Ask at a much cheaper one. Ignored, with a warning,
+    when that provider is not configured for the user.
     """
-
-    assistant_auto_apply_default: bool = False
-    """Whether the Assistant applies plans and flow proposals without asking, for users who have
-    not chosen either way. Off keeps the review steps. Mirrored to the UI through
-    ``/api/v1/config``; the user's own toggle always wins."""
 
     assistant_dock_default: bool = False
     """Whether the Assistant panel opens docked beside the canvas instead of floating over it,
