@@ -42,7 +42,7 @@ const normalizeLanguage = (lang?: string | null): string => {
 };
 
 export const detectedLang = normalizeLanguage(
-  localStorage.getItem("languagePreference") || "en",
+  localStorage.getItem("languagePreference") || "ko",
 );
 
 const i18n = i18next.createInstance();
