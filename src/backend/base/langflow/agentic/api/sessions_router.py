@@ -26,7 +26,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from langflow.agentic.services.assistant_service import clear_session_history
+from langflow.agentic.services.conversation_history import clear_session_history
 from langflow.agentic.services.user_components import clear_user_components
 from langflow.api.utils.core import CurrentActiveUser  # noqa: TC001 — FastAPI Depends alias needs the runtime symbol
 

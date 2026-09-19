@@ -59,10 +59,17 @@ class ConversationTurn:
 
     Both fields are plaintext; secrets MUST NOT be stored here (the
     upstream SSE pipeline already redacts sensitive payloads).
+
+    ``mode``, ``artifact`` and ``artifact_ref`` are optional metadata a turn
+    can leave for the next one (see ``conversation_history.last_artifact``).
+    They are never rendered into the prompt history.
     """
 
     user: str
     assistant: str
+    mode: str | None = None
+    artifact: str | None = None
+    artifact_ref: str | None = None
 
     def format_for_prompt(self, max_field_chars: int | None = None) -> str:
         """Render this turn as a compact ``User: … / Assistant: …`` block.
