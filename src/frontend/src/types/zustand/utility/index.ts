@@ -55,6 +55,17 @@ export type UtilityStoreType = {
   // server's cap instead of a UI-local constant that can drift below it.
   assistantMaxMessageLength: number;
   setAssistantMaxMessageLength: (assistantMaxMessageLength: number) => void;
+  // Deployment defaults for the Assistant panel, mirrored from /config. Each
+  // applies only until the user makes their own choice in the panel.
+  /** `Provider:model`, or "" when the deployment names none. */
+  assistantDefaultModel: string;
+  assistantAutoApplyDefault: boolean;
+  assistantDockDefault: boolean;
+  setAssistantDefaults: (defaults: {
+    assistantDefaultModel: string;
+    assistantAutoApplyDefault: boolean;
+    assistantDockDefault: boolean;
+  }) => void;
   // False on the production deployment profile, where local Chroma is refused.
   localVectorStoreAvailable: boolean;
   setLocalVectorStoreAvailable: (localVectorStoreAvailable: boolean) => void;

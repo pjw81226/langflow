@@ -13,6 +13,7 @@ import {
 import { useRefreshModelInputs } from "@/hooks/use-refresh-model-inputs";
 import ModelProviderModal from "@/modals/modelProviderModal";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
+import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
 import type { AssistantModel } from "../assistant-panel.types";
 import { classifyModelStrength } from "../helpers/model-strength";
@@ -61,15 +62,32 @@ export function ModelSelector({
     );
   }, [enabledProviders]);
 
-  // Catalog order can put a weak SKU first (LE-1767): default to the first
-  // strong model; allModels[0] only when every enabled model is weak.
-  const defaultModel = useMemo(
-    () =>
+  // `Provider:model` chosen by the deployment (LANGFLOW_ASSISTANT_DEFAULT_MODEL).
+  const configuredDefault = useUtilityStore(
+    (state) => state.assistantDefaultModel,
+  );
+
+  // The deployment's choice wins while that model is enabled: catalog order
+  // puts the provider's newest, and usually most expensive, model first.
+  // Otherwise catalog order can put a weak SKU first (LE-1767): default to the
+  // first strong model; allModels[0] only when every enabled model is weak.
+  const defaultModel = useMemo(() => {
+    const separator = configuredDefault.indexOf(":");
+    const configured =
+      separator > 0
+        ? allModels.find(
+            (m) =>
+              m.provider === configuredDefault.slice(0, separator) &&
+              m.name === configuredDefault.slice(separator + 1),
+          )
+        : undefined;
+    return (
+      configured ??
       allModels.find((m) => classifyModelStrength(m.name) === "strong") ??
       allModels[0] ??
-      null,
-    [allModels],
-  );
+      null
+    );
+  }, [allModels, configuredDefault]);
 
   // Auto-select the default model if none selected or if the selected model
   // is no longer available (e.g., provider was removed or model was disabled)

@@ -88,4 +88,58 @@ describe("useGetConfig", () => {
       true,
     );
   });
+
+  // The assistant fields ride on the authenticated ("full") config: an
+  // anonymous caller has no editor, so no panel to configure.
+  const baseConfig = {
+    type: "full",
+    frontend_timeout: 30,
+    max_file_size_upload: 100,
+    event_delivery: EventDeliveryType.STREAMING,
+    voice_mode_available: false,
+    allow_custom_components: true,
+    catalog_governance_enabled: false,
+    mcp_base_url: "",
+    enable_extension_reload: false,
+  };
+
+  it("stores the assistant panel defaults the deployment configured", async () => {
+    mockApiGet.mockResolvedValue({
+      data: {
+        ...baseConfig,
+        assistant_default_model: "OpenAI:gpt-5.4",
+        assistant_auto_apply_default: true,
+        assistant_dock_default: true,
+      },
+    });
+
+    renderHook(() => useGetConfig());
+    await act(async () => {
+      await mockQueryFn?.();
+    });
+
+    const state = useUtilityStore.getState();
+    expect(state.assistantDefaultModel).toBe("OpenAI:gpt-5.4");
+    expect(state.assistantAutoApplyDefault).toBe(true);
+    expect(state.assistantDockDefault).toBe(true);
+  });
+
+  it("keeps the built-in assistant behaviour for servers without those fields", async () => {
+    useUtilityStore.setState({
+      assistantDefaultModel: "OpenAI:gpt-5.4",
+      assistantAutoApplyDefault: true,
+      assistantDockDefault: true,
+    });
+    mockApiGet.mockResolvedValue({ data: baseConfig });
+
+    renderHook(() => useGetConfig());
+    await act(async () => {
+      await mockQueryFn?.();
+    });
+
+    const state = useUtilityStore.getState();
+    expect(state.assistantDefaultModel).toBe("");
+    expect(state.assistantAutoApplyDefault).toBe(false);
+    expect(state.assistantDockDefault).toBe(false);
+  });
 });

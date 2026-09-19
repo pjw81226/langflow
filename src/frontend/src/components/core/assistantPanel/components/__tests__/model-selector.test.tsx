@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useUtilityStore } from "@/stores/utilityStore";
 import type { AssistantModel } from "../../assistant-panel.types";
 import { ModelSelector } from "../model-selector";
 
@@ -64,6 +65,70 @@ describe("ModelSelector", () => {
     jest.clearAllMocks();
     mockCatalogLoading = false;
     mockCatalogError = false;
+    useUtilityStore.setState({ assistantDefaultModel: "" });
+  });
+
+  describe("default model", () => {
+    it("should_select_the_first_strong_model_when_the_deployment_names_none", () => {
+      const onModelChange = jest.fn();
+
+      render(
+        <ModelSelector selectedModel={null} onModelChange={onModelChange} />,
+      );
+
+      expect(onModelChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "Anthropic",
+          name: "claude-sonnet-4-20250514",
+        }),
+      );
+    });
+
+    it("should_select_the_model_the_deployment_configured", () => {
+      // Catalog order lists the provider's newest, priciest model first.
+      useUtilityStore.setState({ assistantDefaultModel: "OpenAI:gpt-4o" });
+      const onModelChange = jest.fn();
+
+      render(
+        <ModelSelector selectedModel={null} onModelChange={onModelChange} />,
+      );
+
+      expect(onModelChange).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "OpenAI", name: "gpt-4o" }),
+      );
+    });
+
+    it("should_ignore_a_configured_model_that_is_not_enabled", () => {
+      useUtilityStore.setState({ assistantDefaultModel: "OpenAI:gpt-9" });
+      const onModelChange = jest.fn();
+
+      render(
+        <ModelSelector selectedModel={null} onModelChange={onModelChange} />,
+      );
+
+      expect(onModelChange).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "claude-sonnet-4-20250514" }),
+      );
+    });
+
+    it("should_keep_the_model_the_user_already_picked", () => {
+      useUtilityStore.setState({ assistantDefaultModel: "OpenAI:gpt-4o" });
+      const onModelChange = jest.fn();
+
+      render(
+        <ModelSelector
+          selectedModel={{
+            id: "Anthropic-claude-haiku-4-20250514",
+            name: "claude-haiku-4-20250514",
+            provider: "Anthropic",
+            displayName: "claude-haiku-4-20250514",
+          }}
+          onModelChange={onModelChange}
+        />,
+      );
+
+      expect(onModelChange).not.toHaveBeenCalled();
+    });
   });
 
   it("renders an inert error state instead of a stale saved model", () => {
