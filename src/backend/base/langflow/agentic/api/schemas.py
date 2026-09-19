@@ -24,6 +24,7 @@ StepType = Literal[
     "flow_build_failed",  # Flow build failed
     "flow_proposal_ready",  # Build-from-scratch flow ready, gated on user Continue/Dismiss
     "verifying_flow",  # The built flow is being test-run before it is delivered
+    "writing_prompt",  # The prompt writer is drafting instructions
     "generating_document",  # Agent is materializing a file in the sandboxed workspace
     "document_ready",  # File write completed
 ]
@@ -57,6 +58,9 @@ class AssistantRequest(BaseModel):
     flow_id: str
     component_id: str | None = None
     field_name: str | None = None
+    # The live text of ``field_name`` on ``component_id``, sent with Prompt turns. It is
+    # quoted data, not a message, so it keeps its line breaks and has its own cap.
+    field_value: str | None = Field(None, max_length=20_000)
     input_value: str | None = None
     max_retries: int | None = Field(None, ge=1, le=5)
     model_name: str | None = None
@@ -65,8 +69,9 @@ class AssistantRequest(BaseModel):
     history_limit: int | None = Field(None, ge=0, le=100)
     iterations_limit: int | None = Field(None, ge=1, le=200)
     # Panel mode chosen by the user. None keeps the classifier-driven routing;
-    # "ask" is a read-only help turn that never changes the canvas.
-    mode: Literal["build", "ask"] | None = None
+    # "ask" is a read-only help turn that never changes the canvas. "component" and
+    # "prompt" are the tabs of the assistant that replaces the classifier.
+    mode: Literal["build", "ask", "component", "prompt"] | None = None
     # "test_flow" runs the flow on the canvas once and returns a test_result. It is
     # not an agent turn: no classification, no LLM, and input_value is ignored.
     action: Literal["test_flow"] | None = None
