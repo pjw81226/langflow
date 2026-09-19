@@ -29,6 +29,12 @@ StepType = Literal[
 ]
 
 
+# A glossary is a short list of short labels. The caps keep it from becoming a second,
+# unbounded prompt channel.
+MAX_UI_GLOSSARY_ENTRIES = 60
+MAX_UI_GLOSSARY_LABEL_CHARS = 80
+
+
 def _reject_overlong_message(value: str | None) -> str | None:
     """Enforce ``LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH`` on an assistant prompt.
 
@@ -67,6 +73,24 @@ class AssistantRequest(BaseModel):
     # The panel applies built flows without asking (its auto-apply preference). The
     # agent is told, so it reports the flow as added to the canvas, not as proposed.
     auto_apply: bool | None = None
+    # UI labels as the user sees them, {English label: label in the UI language}, sent
+    # with Ask turns when the UI is not in English. The docs are English, so without it
+    # a label quoted in the user's language cannot be matched to what the docs describe.
+    ui_glossary: dict[str, str] | None = None
+
+    @field_validator("ui_glossary")
+    @classmethod
+    def check_ui_glossary(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        if value is None:
+            return None
+        if len(value) > MAX_UI_GLOSSARY_ENTRIES:
+            msg = f"ui_glossary has {len(value)} entries, limit is {MAX_UI_GLOSSARY_ENTRIES}."
+            raise ValueError(msg)
+        for english, shown in value.items():
+            if len(english) > MAX_UI_GLOSSARY_LABEL_CHARS or len(shown) > MAX_UI_GLOSSARY_LABEL_CHARS:
+                msg = f"ui_glossary labels are limited to {MAX_UI_GLOSSARY_LABEL_CHARS} characters."
+                raise ValueError(msg)
+        return value
 
     @field_validator("input_value")
     @classmethod

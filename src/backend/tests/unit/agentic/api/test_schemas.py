@@ -59,6 +59,17 @@ class TestAssistantRequest:
         with pytest.raises(ValidationError):
             AssistantRequest(flow_id="test-flow-id", action="delete_flow")
 
+    def test_should_accept_a_small_ui_glossary(self):
+        request = AssistantRequest(flow_id="test-flow-id", mode="ask", ui_glossary={"Ask": "질문하기"})
+
+        assert request.ui_glossary == {"Ask": "질문하기"}
+
+    def test_should_reject_a_glossary_used_as_a_second_prompt(self):
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id", ui_glossary={f"label {i}": "x" for i in range(61)})
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id", ui_glossary={"Ask": "x" * 81})
+
     def test_should_create_with_all_fields(self):
         """Should create request with all fields populated."""
         request = AssistantRequest(

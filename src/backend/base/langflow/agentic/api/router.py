@@ -439,6 +439,7 @@ async def assist_stream(
                 mode=request.mode,
                 action=request.action,
                 panel_auto_applies=bool(request.auto_apply),
+                ui_glossary=request.ui_glossary,
             ):
                 yield event
 

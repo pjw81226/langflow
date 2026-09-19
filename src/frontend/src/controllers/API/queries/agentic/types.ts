@@ -272,6 +272,9 @@ export interface AgenticAssistRequest {
   /** The panel applies built flows without asking, so the agent should report
    * a flow as added to the canvas rather than as a proposal. */
   auto_apply?: boolean;
+  /** {English label: label in the UI language}, sent with ask turns on a
+   * translated UI so the agent can match labels to the English docs. */
+  ui_glossary?: Record<string, string>;
 }
 
 export interface AgenticProgressState {

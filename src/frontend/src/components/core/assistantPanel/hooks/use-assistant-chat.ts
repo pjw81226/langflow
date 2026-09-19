@@ -29,6 +29,7 @@ import {
   buildTaskFromEvent,
   inProgressTaskFromEvent,
 } from "../helpers/assistant-event-mappers";
+import { buildUiGlossary } from "../helpers/ui-glossary";
 import {
   stripVerificationCaveat,
   testResultFromComplete,
@@ -336,6 +337,7 @@ export function useAssistantChat(
             mode: turnMode,
             ...(turnAction ? { action: turnAction } : {}),
             ...(skipAllRef.current ? { auto_apply: true } : {}),
+            ...(isAskTurn ? { ui_glossary: buildUiGlossary() } : {}),
           },
           {
             onProgress: (event) => {
