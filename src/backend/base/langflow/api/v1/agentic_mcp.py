@@ -1,8 +1,8 @@
 """Streamable-HTTP transport for the ``langflow-mcp`` (lfx) FastMCP server.
 
-Exposes the single Langflow MCP toolkit — flow authoring, execution, and
-``run_assistant`` — at ``/api/v1/agentic/mcp`` so external MCP clients can
-reach the running Langflow server without spawning a local stdio process.
+Exposes the single Langflow MCP toolkit (flow authoring and execution) at
+``/api/v1/agentic/mcp`` so external MCP clients can reach the running Langflow
+server without spawning a local stdio process.
 
 The mounted server is ``lfx.mcp.server``: the same tool definitions the local
 ``lfx-mcp`` stdio bridge ships, so there is exactly one MCP toolkit. Every tool
@@ -13,13 +13,9 @@ tool is excluded over HTTP: the caller is already authenticated, and accepting
 credentials/server URLs from tool arguments would be a credential-forwarding
 surface.
 
-The mount itself is NOT gated on ``agentic_experience``. Every tool here is a
-REST call the API already authorizes, and the ``lfx-mcp`` stdio bridge serves
-the same toolkit ungated -- gating the whole mount would hold 32 ungated tools
-hostage to the one tool that needs the gate, and make HTTP arbitrarily weaker
-than stdio for no security gain. Instead ``run_assistant`` alone is excluded
-while the gate is off, since it is the only tool that reaches the assistant's
-code-generating endpoints.
+The mount is NOT gated on ``agentic_experience``: every tool here is a REST call
+the API already authorizes, and the ``lfx-mcp`` stdio bridge serves the same
+toolkit ungated. None of the tools reaches the in-app assistant.
 """
 
 from contextvars import ContextVar
@@ -35,23 +31,12 @@ from mcp.server import Server
 
 from langflow.api.utils import CurrentActiveMCPUser, DbSession
 from langflow.api.v1.mcp import ResponseNoOp, StreamableHTTP
-from langflow.services.deps import get_settings_service
 
 router = APIRouter(prefix="/agentic/mcp", tags=["agentic-mcp"], include_in_schema=False)
 
 # login() would accept credentials and an arbitrary server_url from tool
 # arguments; the route already authenticates the caller, so keep it stdio-only.
 _HTTP_EXCLUDED_TOOLS = frozenset({"login"})
-
-# run_assistant drives the assistant's codegen endpoints, which agentic_experience gates.
-_AGENTIC_GATED_TOOLS = frozenset({"run_assistant"})
-
-
-def _excluded_tools() -> frozenset[str]:
-    """Tools hidden from this transport for the current request."""
-    if get_settings_service().settings.agentic_experience:
-        return _HTTP_EXCLUDED_TOOLS
-    return _HTTP_EXCLUDED_TOOLS | _AGENTIC_GATED_TOOLS
 
 
 current_loopback_client_ctx: ContextVar[LangflowClient | None] = ContextVar("current_loopback_client_ctx", default=None)
@@ -87,8 +72,7 @@ async def handle_list_resources() -> list[types.Resource]:
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
-    excluded = _excluded_tools()
-    return [tool for tool in await lfx_mcp.list_tools() if tool.name not in excluded]
+    return [tool for tool in await lfx_mcp.list_tools() if tool.name not in _HTTP_EXCLUDED_TOOLS]
 
 
 @server.call_tool(validate_input=False)
@@ -102,12 +86,6 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> Any:
     """
     if name in _HTTP_EXCLUDED_TOOLS:
         msg = f"Tool '{name}' is not available over HTTP"
-        raise ValueError(msg)
-    if name in _excluded_tools():
-        msg = (
-            f"Tool '{name}' requires the Langflow Assistant, which is disabled on this server "
-            "(LANGFLOW_AGENTIC_EXPERIENCE is not enabled). The other tools remain available."
-        )
         raise ValueError(msg)
     client = current_loopback_client_ctx.get()
     if client is None:

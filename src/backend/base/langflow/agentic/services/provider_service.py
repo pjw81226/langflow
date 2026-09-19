@@ -239,7 +239,7 @@ def _deployment_default_model(provider: str, available: list[str]) -> str | None
 
     It applies when it names this provider and a model the provider actually offers.
     The panel reads the same setting through ``/api/v1/config``, so the UI and the
-    headless callers (MCP, ``/assist/run``) agree on one default.
+    server agree on one default.
     """
     from lfx.services.deps import get_settings_service
 

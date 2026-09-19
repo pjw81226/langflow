@@ -98,26 +98,6 @@ class AssistantRequest(BaseModel):
         return _reject_overlong_message(value)
 
 
-class HeadlessAssistantRequest(BaseModel):
-    """Request model for the headless (auto-apply) assistant route.
-
-    Unlike ``AssistantRequest`` the flow is optional (one is created when absent)
-    and the caller is not a UI, so there is no component/field review context.
-    """
-
-    instruction: str
-    flow_id: str | None = None
-    provider: str | None = None
-    model_name: str | None = None
-    session_id: str | None = None
-
-    @field_validator("instruction")
-    @classmethod
-    def check_instruction_length(cls, value: str) -> str:
-        _reject_overlong_message(value)
-        return value
-
-
 class ValidationResult(BaseModel):
     """Result of component code validation."""
 

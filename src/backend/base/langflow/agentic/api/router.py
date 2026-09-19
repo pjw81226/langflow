@@ -4,9 +4,6 @@ This module provides the HTTP endpoints for the Langflow Assistant.
 All business logic is delegated to service modules.
 """
 
-import asyncio
-import contextlib
-import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -22,13 +19,12 @@ from lfx.base.models.unified_models import (
     is_known_model_provider,
 )
 from lfx.log.logger import logger
-from lfx.services.deps import get_settings_service, session_scope
+from lfx.services.deps import get_settings_service
 from lfx.services.model_provider_policy import ModelProviderPolicyPurpose
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from langflow.agentic.api.deps import require_agentic_experience
-from langflow.agentic.api.schemas import AssistantRequest, HeadlessAssistantRequest
-from langflow.agentic.helpers.sse import format_complete_event, format_error_event
+from langflow.agentic.api.schemas import AssistantRequest
 from langflow.agentic.services.assistant_service import (
     execute_flow_with_validation,
     execute_flow_with_validation_streaming,
@@ -450,83 +446,4 @@ async def assist_stream(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
-    )
-
-
-@router.post("/assist/run", dependencies=[Depends(require_agentic_experience)], include_in_schema=False)
-async def assist_headless(
-    request: HeadlessAssistantRequest,
-    current_user: CurrentActiveUser,
-    session: DbSession,
-) -> StreamingResponse:
-    """Run the assistant headlessly: canvas changes are applied, not proposed.
-
-    ``/assist/stream`` leaves a canvas change as a proposal the user approves in
-    a UI card. A headless caller (the MCP ``run_assistant`` tool) has no card, so
-    its edits would be silently dropped — this route persists them through
-    ``run_assistant_and_persist`` and streams the same ``progress`` events,
-    ending in ``complete`` (or ``error``).
-    """
-    # Local import: assistant_runner imports this module's helpers, so a top-level
-    # import here would close the cycle at startup.
-    from langflow.agentic.utils.assistant_runner import run_assistant_and_persist
-
-    if request.flow_id:
-        await _validate_flow_access(request.flow_id, current_user.id, session)
-
-    async def _stream() -> AsyncIterator[str]:
-        queue: asyncio.Queue[dict | None] = asyncio.Queue()
-
-        async def on_progress(event: dict) -> None:
-            await queue.put(event)
-
-        async def _drive() -> dict:
-            try:
-                # ``session`` is function-scoped: FastAPI closes it when the
-                # handler returns, which is before this generator runs. Reusing
-                # it here would silently re-acquire a connection outside the
-                # request's transaction, with no teardown commit behind the
-                # writes. Own the scope explicitly instead.
-                async with session_scope() as stream_session:
-                    return await run_assistant_and_persist(
-                        session=stream_session,
-                        user_id=current_user.id,
-                        instruction=request.instruction,
-                        flow_id=request.flow_id,
-                        provider=request.provider,
-                        model_name=request.model_name,
-                        session_id=request.session_id,
-                        on_progress=on_progress,
-                    )
-            finally:
-                await queue.put(None)
-
-        task = asyncio.create_task(_drive())
-        try:
-            while True:
-                event = await queue.get()
-                if event is None:
-                    break
-                # Re-emit the assistant's own progress event verbatim: it already carries
-                # the step/attempt shape the SSE formatter would rebuild.
-                yield f"data: {json.dumps(event)}\n\n"
-            try:
-                result = await task
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Headless assistant run failed")
-                yield format_error_event(str(exc))
-                return
-            yield format_complete_event(result)
-        finally:
-            # Client disconnect cancels this generator mid-yield; without this the
-            # orphaned task keeps writing to the DB on a tearing-down session.
-            if not task.done():
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-
-    return StreamingResponse(
-        _stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )

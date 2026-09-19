@@ -14,8 +14,8 @@ exposed.
 The mount is NOT gated on ``agentic_experience``: its tools are REST calls the
 API already authorizes, and the ``lfx-mcp`` stdio bridge serves the same toolkit
 ungated, so gating the mount would only make HTTP weaker than stdio for no gain.
-The gate applies per-tool to ``run_assistant``, the only tool that reaches the
-assistant's code-generating endpoints.
+None of the tools reaches the in-app assistant, so the gate never changes the
+tool list.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -88,26 +88,14 @@ class TestAgenticMcpToolkitStaysReachableWhenAssistantIsOff:
 
 
 @pytest.mark.usefixtures("agentic_disabled")
-class TestRunAssistantIsGatedPerTool:
-    async def test_should_hide_run_assistant_while_the_assistant_is_disabled(self):
-        from langflow.api.v1.agentic_mcp import handle_list_tools
-
-        tool_names = {tool.name for tool in await handle_list_tools()}
-
-        assert "run_assistant" not in tool_names
-
+class TestToolkitIgnoresTheAssistantGate:
     async def test_should_keep_the_authoring_tools_while_the_assistant_is_disabled(self):
         from langflow.api.v1.agentic_mcp import handle_list_tools
 
         tool_names = {tool.name for tool in await handle_list_tools()}
 
         assert {"create_flow", "connect_components", "run_flow", "update_flow_from_spec"} <= tool_names
-
-    async def test_should_refuse_run_assistant_with_an_explanatory_error(self):
-        from langflow.api.v1 import agentic_mcp
-
-        with pytest.raises(ValueError, match="LANGFLOW_AGENTIC_EXPERIENCE"):
-            await agentic_mcp.handle_call_tool("run_assistant", {"instruction": "build a flow"})
+        assert "run_assistant" not in tool_names
 
 
 @pytest.mark.usefixtures("agentic_enabled")
@@ -183,13 +171,13 @@ class TestAgenticMcpReleasesItsDbSession:
 
 @pytest.mark.usefixtures("agentic_enabled")
 class TestAgenticMcpToolDelegation:
-    async def test_should_list_the_lfx_toolkit_including_run_assistant(self):
+    async def test_should_list_the_lfx_toolkit_without_the_assistant(self):
         from langflow.api.v1.agentic_mcp import handle_list_tools
 
         tools = await handle_list_tools()
         tool_names = {tool.name for tool in tools}
 
-        assert "run_assistant" in tool_names
+        assert "run_assistant" not in tool_names
         assert "create_flow" in tool_names
         assert "connect_components" in tool_names
         for tool in tools:

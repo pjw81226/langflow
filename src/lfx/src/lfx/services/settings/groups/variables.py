@@ -23,8 +23,8 @@ class VariablesSettings(BaseModel):
 
     Set it to False to turn the Assistant off for a deployment -- an operator who does not want
     LLM-authored component code running on their server. That withholds the assistant's
-    code-generating endpoints under ``/api/v1/agentic`` (404), the ``run_assistant`` MCP tool,
-    the seeding of the assistant's built-in flows, and the per-user agentic global variables.
+    code-generating endpoints under ``/api/v1/agentic`` (404), the seeding of the assistant's
+    built-in flows, and the per-user agentic global variables.
     It does NOT withhold the rest of the MCP toolkit at ``/api/v1/agentic/mcp``, whose tools are
     REST calls the API already authorizes. Note this is not the control over in-process code
     execution -- that is ``allow_custom_components``, which applies to the Assistant and to

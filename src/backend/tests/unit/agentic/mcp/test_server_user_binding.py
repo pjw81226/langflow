@@ -111,7 +111,6 @@ async def test_mcp_lifespan_stops_started_policy_refresh(monkeypatch):
         mcp_server.get_flow_component_field_value,
         mcp_server.update_flow_component_field,
         mcp_server.list_flow_component_fields,
-        mcp_server.run_assistant,
     ],
 )
 def test_mcp_flow_tools_do_not_accept_caller_supplied_user_id(tool):

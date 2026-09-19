@@ -6,7 +6,6 @@ Tests the Pydantic models used for request/response validation.
 import pytest
 from langflow.agentic.api.schemas import (
     AssistantRequest,
-    HeadlessAssistantRequest,
     StepType,
     ValidationResult,
 )
@@ -291,20 +290,12 @@ class TestAssistantMessageLengthLimit:
 
         assert str(limit) in str(exc_info.value)
 
-    def test_should_reject_an_overlong_headless_instruction(self):
-        """The headless route shares the same cap."""
-        limit = get_settings_service().settings.assistant_max_message_length
-
-        with pytest.raises(ValidationError):
-            HeadlessAssistantRequest(instruction="a" * (limit + 1))
-
     def test_should_honor_a_raised_limit(self, monkeypatch):
-        """Raising LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH widens both entry points."""
+        """Raising LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH widens the limit."""
         settings = get_settings_service().settings
         monkeypatch.setattr(settings, "assistant_max_message_length", 6000)
 
         assert AssistantRequest(flow_id="flow-1", input_value="a" * 6000).input_value is not None
-        assert HeadlessAssistantRequest(instruction="a" * 6000).instruction is not None
 
         with pytest.raises(ValidationError):
             AssistantRequest(flow_id="flow-1", input_value="a" * 6001)
