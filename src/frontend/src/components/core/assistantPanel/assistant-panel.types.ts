@@ -57,6 +57,10 @@ export interface AssistantMessage {
    * continuation turn. False for a pure edit (no redundant 2nd message). */
   continuationExpected?: boolean;
   pendingFlowProposal?: PendingFlowProposal;
+  /** A flow that was put on the canvas without asking (auto-apply on, or the
+   * backend marked it auto_apply). Shown as an "applied" card whose Revert
+   * restores ``flowProposalSnapshot``. */
+  autoAppliedFlow?: Omit<PendingFlowProposal, "tailUpdates">;
   flowProposalStatus?: FlowProposalStatus;
   /** Canvas nodes/edges captured right before Add/Replace so a client-side
    * Revert restores the pre-apply state and re-enables the apply actions. */

@@ -137,6 +137,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     handleUpdateFlowAction,
     handleApplyFlowProposal,
     handleRevertFlowProposal,
+    handleRevertAutoApplied,
     handleDismissFlowProposal,
     handleApprovePlan,
     handleDismissPlan,
@@ -144,6 +145,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     handleAcknowledgeValidation,
     isRefiningPlan,
     skipAll,
+    toggleSkipAll,
     handleRetry,
     handleMarkReverted,
     handleStopGeneration,
@@ -517,6 +519,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
           onDeleteSession={deleteSession}
           isExpanded={useExpandedSize}
           skipAll={skipAll}
+          onToggleSkipAll={toggleSkipAll}
+          isProcessing={isProcessing}
           isDocked={isDocked}
           canDock={canDock}
           onToggleDock={toggleDock}
@@ -540,6 +544,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   onUpdateFlowAction={handleUpdateFlowAction}
                   onApplyFlowProposal={handleApplyFlowProposal}
                   onRevertFlowProposal={handleRevertFlowProposal}
+                  onRevertAutoApplied={handleRevertAutoApplied}
                   onDismissFlowProposal={handleDismissFlowProposal}
                   onApprovePlan={handleApprovePlan}
                   onDismissPlan={handleDismissPlan}

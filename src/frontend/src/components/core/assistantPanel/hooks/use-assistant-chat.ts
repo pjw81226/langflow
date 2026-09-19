@@ -1,6 +1,6 @@
 import { useUpdateNodeInternals } from "@xyflow/react";
 import { cloneDeep } from "lodash";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ShortUniqueId from "short-unique-id";
 import {
@@ -15,6 +15,7 @@ import { useAddComponent } from "@/hooks/use-add-component";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
 import useFlowStore from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
+import { useUtilityStore } from "@/stores/utilityStore";
 import type { APIClassType } from "@/types/api";
 import type {
   AssistantMessage,
@@ -43,7 +44,12 @@ import {
   readIterationsLimit,
   writeIterationsLimit,
 } from "./iterations-storage";
-import { readSkipAll, writeSkipAll } from "./skip-all-storage";
+import {
+  hasExplicitSkipAll,
+  markSkipAllExplicit,
+  readSkipAll,
+  writeSkipAll,
+} from "./skip-all-storage";
 import type { UseAssistantChatReturn } from "./use-assistant-chat.types";
 
 const uid = new ShortUniqueId();
@@ -101,6 +107,16 @@ export function useAssistantChat(
   const [skipAll, setSkipAll] = useState<boolean>(() => readSkipAll());
   const skipAllRef = useRef<boolean>(skipAll);
   skipAllRef.current = skipAll;
+  // Deployment default for users who never chose. Applied in an effect, not as
+  // initial state: /config can land after this always-mounted hook has run.
+  const autoApplyDefault = useUtilityStore(
+    (state) => state.assistantAutoApplyDefault,
+  );
+  useEffect(() => {
+    if (hasExplicitSkipAll()) return;
+    skipAllRef.current = autoApplyDefault;
+    setSkipAll(autoApplyDefault);
+  }, [autoApplyDefault]);
   // `/history N` memory window; null = backend defaults. Ref for same-tick reads.
   const historyLimitRef = useRef<number | null>(readHistoryLimit());
   // `/iterations N` step budget; null = backend default (30). Ref for same-tick reads.
@@ -179,6 +195,7 @@ export function useAssistantChat(
         skipAllRef.current = next;
         setSkipAll(next);
         writeSkipAll(next);
+        markSkipAllExplicit();
         const announcement = next
           ? t("assistant.command.skipAll.enabled")
           : t("assistant.command.skipAll.disabled");
@@ -423,12 +440,34 @@ export function useAssistantChat(
               }
               if (event.action === "set_flow") {
                 if (skipAllRef.current || event.auto_apply === true) {
+                  // Nobody was asked, so keep a way back: snapshot the canvas
+                  // before the FIRST auto-applied flow of the turn (fix turns
+                  // emit more) and leave a card with Revert on the message.
+                  const preApply = useFlowStore.getState();
+                  const snapshot = {
+                    nodes: cloneDeep(preApply.nodes) as unknown[],
+                    edges: cloneDeep(preApply.edges) as unknown[],
+                  };
                   // Direct apply — the queue-and-drain approach hit a stale-closure race.
                   applyFlowUpdate({
                     event: "flow_update",
                     action: "set_flow",
                     flow: event.flow,
                   });
+                  const applied = (event.flow ?? {}) as Record<string, unknown>;
+                  const appliedData = (applied.data ?? {}) as {
+                    nodes?: unknown[];
+                    edges?: unknown[];
+                  };
+                  updateMessage(assistantMessageId, (msg) => ({
+                    autoAppliedFlow: {
+                      flow: applied,
+                      name: (applied.name as string | undefined) ?? undefined,
+                      nodeCount: (appliedData.nodes ?? []).length,
+                      edgeCount: (appliedData.edges ?? []).length,
+                    },
+                    flowProposalSnapshot: msg.flowProposalSnapshot ?? snapshot,
+                  }));
                   return;
                 }
                 // Buffer as a proposal; canvas untouched until the user applies it.
@@ -803,6 +842,27 @@ export function useAssistantChat(
     [messages, updateMessage],
   );
 
+  const handleRevertAutoApplied = useCallback(
+    (messageId: string) => {
+      const message = messages.find((m) => m.id === messageId);
+      const snapshot = message?.flowProposalSnapshot;
+      const flow = message?.autoAppliedFlow;
+      if (!snapshot || !flow) return;
+      useFlowStore
+        .getState()
+        .setNodesAndEdges(snapshot.nodes as never[], snapshot.edges as never[]);
+      // The canvas is back as it was. The flow becomes an ordinary proposal, so
+      // the user can still put it on the canvas, this time by choice.
+      updateMessage(messageId, () => ({
+        autoAppliedFlow: undefined,
+        flowProposalSnapshot: undefined,
+        pendingFlowProposal: { ...flow, tailUpdates: [] },
+        flowProposalStatus: "pending" as const,
+      }));
+    },
+    [messages, updateMessage],
+  );
+
   const handleDismissFlowProposal = useCallback(
     (messageId: string) => {
       // Keep the proposal data so the card renders muted instead of vanishing.
@@ -880,6 +940,7 @@ export function useAssistantChat(
       const next = !prev;
       skipAllRef.current = next;
       writeSkipAll(next);
+      markSkipAllExplicit();
       return next;
     });
   }, []);
@@ -953,6 +1014,7 @@ export function useAssistantChat(
     handleUpdateFlowAction,
     handleApplyFlowProposal,
     handleRevertFlowProposal,
+    handleRevertAutoApplied,
     handleDismissFlowProposal,
     handleApprovePlan,
     handleDismissPlan,

@@ -23,6 +23,7 @@ interface AssistantMessageItemProps {
   ) => void;
   onApplyFlowProposal?: (messageId: string, mode?: "replace" | "add") => void;
   onRevertFlowProposal?: (messageId: string) => void;
+  onRevertAutoApplied?: (messageId: string) => void;
   onDismissFlowProposal?: (messageId: string) => void;
   onApprovePlan?: (messageId: string) => void;
   onDismissPlan?: (messageId: string) => void;
@@ -103,6 +104,7 @@ export function AssistantMessageItem({
   onUpdateFlowAction,
   onApplyFlowProposal,
   onRevertFlowProposal,
+  onRevertAutoApplied,
   onDismissFlowProposal,
   onApprovePlan,
   onDismissPlan,
@@ -248,6 +250,7 @@ export function AssistantMessageItem({
               onUpdateFlowAction={onUpdateFlowAction}
               onApplyFlowProposal={onApplyFlowProposal}
               onRevertFlowProposal={onRevertFlowProposal}
+              onRevertAutoApplied={onRevertAutoApplied}
               onDismissFlowProposal={onDismissFlowProposal}
               onApprovePlan={onApprovePlan}
               onDismissPlan={onDismissPlan}
@@ -280,7 +283,9 @@ export function AssistantMessageItem({
             isLatestRestorePoint &&
             // Gated proposals own their revert via the card's Revert button;
             // suppress the version-based footer so there is a single affordance.
-            !message.pendingFlowProposal && (
+            // Same for an auto-applied flow while its card can still revert.
+            !message.pendingFlowProposal &&
+            !(message.autoAppliedFlow && message.flowProposalSnapshot) && (
               <AssistantRevertAction
                 restoreVersionId={message.restoreVersionId}
                 reverted={Boolean(message.reverted)}

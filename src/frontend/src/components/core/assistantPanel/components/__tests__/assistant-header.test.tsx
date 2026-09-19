@@ -162,4 +162,75 @@ describe("AssistantHeader", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("auto-apply menu", () => {
+    it("should_not_render_the_menu_without_a_toggle_handler", () => {
+      render(<AssistantHeader {...defaultProps} />);
+
+      expect(screen.queryByTestId("assistant-menu")).toBeNull();
+    });
+
+    it("should_toggle_auto_apply_from_the_menu", async () => {
+      const onToggleSkipAll = jest.fn();
+      const user = userEvent.setup();
+      render(
+        <AssistantHeader {...defaultProps} onToggleSkipAll={onToggleSkipAll} />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "More options" }));
+      const item = await screen.findByRole("menuitemcheckbox", {
+        name: /Apply changes automatically/,
+      });
+      expect(item).toHaveAttribute("aria-checked", "false");
+      await user.click(item);
+
+      expect(onToggleSkipAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should_show_the_current_state_and_say_components_still_need_approval", async () => {
+      const user = userEvent.setup();
+      render(
+        <AssistantHeader
+          {...defaultProps}
+          skipAll
+          onToggleSkipAll={jest.fn()}
+        />,
+      );
+
+      expect(screen.getByTestId("assistant-skip-all-badge")).toHaveTextContent(
+        "Auto-apply",
+      );
+      await user.click(screen.getByRole("button", { name: "More options" }));
+
+      expect(
+        await screen.findByRole("menuitemcheckbox", {
+          name: /Apply changes automatically/,
+        }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(
+        screen.getByText(/Components still need your approval/),
+      ).toBeInTheDocument();
+    });
+
+    it("should_lock_the_toggle_while_a_turn_is_running", async () => {
+      // A flip between the plan and its completion would send the approval
+      // signal as a visible message.
+      const user = userEvent.setup();
+      render(
+        <AssistantHeader
+          {...defaultProps}
+          onToggleSkipAll={jest.fn()}
+          isProcessing
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "More options" }));
+
+      expect(
+        await screen.findByRole("menuitemcheckbox", {
+          name: /Apply changes automatically/,
+        }),
+      ).toHaveAttribute("aria-disabled", "true");
+    });
+  });
 });

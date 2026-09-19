@@ -46,6 +46,7 @@ export interface AssistantMessageBodyProps {
   ) => void;
   onApplyFlowProposal?: (messageId: string, mode?: "replace" | "add") => void;
   onRevertFlowProposal?: (messageId: string) => void;
+  onRevertAutoApplied?: (messageId: string) => void;
   onDismissFlowProposal?: (messageId: string) => void;
   onApprovePlan?: (messageId: string) => void;
   onDismissPlan?: (messageId: string) => void;
@@ -65,6 +66,7 @@ export function AssistantMessageBody({
   onUpdateFlowAction,
   onApplyFlowProposal,
   onRevertFlowProposal,
+  onRevertAutoApplied,
   onDismissFlowProposal,
   onApprovePlan,
   onDismissPlan,
@@ -247,6 +249,37 @@ export function AssistantMessageBody({
           onApprove={() => onApprovePlan?.(message.id)}
           onDismiss={() => onDismissPlan?.(message.id)}
           onReset={() => onResetPlan?.(message.id)}
+        />
+      </div>
+    );
+  }
+
+  // Auto-applied flow: nobody was asked, so the card's job is the way back. It
+  // needs the pre-apply snapshot, which does not survive a reload; without it
+  // the version-based revert in the message footer takes over.
+  if (
+    message.autoAppliedFlow &&
+    message.flowProposalSnapshot &&
+    !message.pendingFlowProposal
+  ) {
+    const cleanContent = message.content
+      ?.replace(/```flow_json[\s\S]*?```/gi, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    return (
+      <div className="flex flex-col gap-3">
+        {cleanContent && <ChatMarkdown>{cleanContent}</ChatMarkdown>}
+        <AssistantFlowPreview
+          flowPreview={{
+            flow: message.autoAppliedFlow.flow,
+            name: message.autoAppliedFlow.name ?? "",
+            nodeCount: message.autoAppliedFlow.nodeCount,
+            edgeCount: message.autoAppliedFlow.edgeCount,
+            graph: "",
+          }}
+          status="applied"
+          onRevert={() => onRevertAutoApplied?.(message.id)}
+          canRevert
         />
       </div>
     );

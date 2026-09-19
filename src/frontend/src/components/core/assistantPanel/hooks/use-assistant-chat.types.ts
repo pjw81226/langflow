@@ -38,6 +38,8 @@ export interface UseAssistantChatReturn {
     mode?: "replace" | "add",
   ) => void;
   handleRevertFlowProposal: (messageId: string) => void;
+  /** Undo a flow that was applied without asking; it becomes a pending proposal. */
+  handleRevertAutoApplied: (messageId: string) => void;
   handleDismissFlowProposal: (messageId: string) => void;
   handleApprovePlan: (messageId: string) => Promise<void>;
   handleDismissPlan: (messageId: string) => void;

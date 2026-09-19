@@ -14,6 +14,10 @@
  */
 
 const STORAGE_KEY = "langflow-assistant-skip-all";
+// Turning skip-all off removes STORAGE_KEY, so "off" and "never chose" look the
+// same there. This marker tells them apart: only a user who never chose follows
+// the deployment default (assistant_auto_apply_default).
+const EXPLICIT_KEY = "langflow-assistant-skip-all-set";
 const ENABLED_VALUE = "true";
 
 export function readSkipAll(): boolean {
@@ -34,5 +38,25 @@ export function writeSkipAll(value: boolean): void {
   } catch {
     // localStorage may be unavailable (private browsing). Skip-all just
     // won't survive the reload — the user can re-toggle.
+  }
+}
+
+export function hasExplicitSkipAll(): boolean {
+  try {
+    return (
+      localStorage.getItem(EXPLICIT_KEY) === ENABLED_VALUE ||
+      // Users who turned it on before the marker existed did choose.
+      localStorage.getItem(STORAGE_KEY) === ENABLED_VALUE
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function markSkipAllExplicit(): void {
+  try {
+    localStorage.setItem(EXPLICIT_KEY, ENABLED_VALUE);
+  } catch {
+    // see writeSkipAll
   }
 }
