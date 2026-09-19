@@ -166,8 +166,8 @@ export function useAssistantChat(
         setSkipAll(next);
         writeSkipAll(next);
         const announcement = next
-          ? "Skip-all mode enabled. Plans, flow proposals, and validated components will be approved automatically."
-          : "Skip-all mode disabled. Plans, flow proposals, and validated components will wait for your Continue click.";
+          ? t("assistant.command.skipAll.enabled")
+          : t("assistant.command.skipAll.disabled");
         setMessages((prev) => [
           ...prev,
           ...commandAckMessages(content, announcement),
@@ -538,7 +538,7 @@ export function useAssistantChat(
         setIsProcessing(false);
       }
     },
-    [isProcessing, currentFlowId, updateMessage],
+    [isProcessing, currentFlowId, updateMessage, t],
   );
 
   const handleApprove = useCallback(
@@ -567,12 +567,14 @@ export function useAssistantChat(
             content: code,
             validated: false,
             componentCode: code,
-            validationError: `Failed to add component: ${errorMessage}`,
+            validationError: t("assistant.addComponentFailed", {
+              error: errorMessage,
+            }),
           },
         }));
       }
     },
-    [messages, validateComponent, addComponent, updateMessage],
+    [messages, validateComponent, addComponent, updateMessage, t],
   );
 
   const handleRetry = useCallback(

@@ -11,6 +11,8 @@
  * degrades to `null` (default) rather than a bogus budget.
  */
 
+import i18n from "@/i18n";
+
 const STORAGE_KEY = "langflow-assistant-iterations-limit";
 export const MAX_ITERATIONS_LIMIT = 200;
 export const DEFAULT_ITERATIONS_LIMIT = 30;
@@ -54,15 +56,20 @@ export function parseIterationsCommand(
       changed: false,
       announcement:
         current === null
-          ? `Iteration budget: default (${DEFAULT_ITERATIONS_LIMIT}). Use "/iterations N" (1–${MAX_ITERATIONS_LIMIT}) to raise it, "/iterations off" to reset.`
-          : `Iteration budget: ${current} steps. "/iterations N" to change, "/iterations off" to reset.`,
+          ? i18n.t("assistant.command.iterations.statusDefault", {
+              default: DEFAULT_ITERATIONS_LIMIT,
+              max: MAX_ITERATIONS_LIMIT,
+            })
+          : i18n.t("assistant.command.iterations.statusCurrent", { current }),
     };
   }
   if (arg === "off" || arg === "default" || arg === "reset") {
     return {
       limit: null,
       changed: true,
-      announcement: `Iteration budget reset to the default (${DEFAULT_ITERATIONS_LIMIT}).`,
+      announcement: i18n.t("assistant.command.iterations.reset", {
+        default: DEFAULT_ITERATIONS_LIMIT,
+      }),
     };
   }
   const n = Number.parseInt(arg, 10);
@@ -70,13 +77,15 @@ export function parseIterationsCommand(
     return {
       limit: current,
       changed: false,
-      announcement: `Invalid iteration budget. Use a number 1–${MAX_ITERATIONS_LIMIT}, or "/iterations off".`,
+      announcement: i18n.t("assistant.command.iterations.invalid", {
+        max: MAX_ITERATIONS_LIMIT,
+      }),
     };
   }
   return {
     limit: n,
     changed: true,
-    announcement: `Iteration budget set to ${n} steps for this session.`,
+    announcement: i18n.t("assistant.command.iterations.set", { n }),
   };
 }
 

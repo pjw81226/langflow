@@ -11,6 +11,8 @@
  * degrades to `null` (defaults) rather than a bogus limit.
  */
 
+import i18n from "@/i18n";
+
 const STORAGE_KEY = "langflow-assistant-history-limit";
 export const MAX_HISTORY_LIMIT = 100;
 
@@ -51,15 +53,17 @@ export function parseHistoryCommand(
       changed: false,
       announcement:
         current === null
-          ? `History limit: default. Use "/history N" (0–${MAX_HISTORY_LIMIT}) to set, "/history off" to clear.`
-          : `History limit: ${current} messages. "/history N" to change, "/history off" to clear.`,
+          ? i18n.t("assistant.command.history.statusDefault", {
+              max: MAX_HISTORY_LIMIT,
+            })
+          : i18n.t("assistant.command.history.statusCurrent", { current }),
     };
   }
   if (arg === "off" || arg === "all" || arg === "clear") {
     return {
       limit: null,
       changed: true,
-      announcement: "History limit cleared — using defaults.",
+      announcement: i18n.t("assistant.command.history.cleared"),
     };
   }
   const n = Number.parseInt(arg, 10);
@@ -67,13 +71,15 @@ export function parseHistoryCommand(
     return {
       limit: current,
       changed: false,
-      announcement: `Invalid history limit. Use a number 0–${MAX_HISTORY_LIMIT}, or "/history off".`,
+      announcement: i18n.t("assistant.command.history.invalid", {
+        max: MAX_HISTORY_LIMIT,
+      }),
     };
   }
   return {
     limit: n,
     changed: true,
-    announcement: `History limit set to ${n} message(s) for this session.`,
+    announcement: i18n.t("assistant.command.history.set", { n }),
   };
 }
 
