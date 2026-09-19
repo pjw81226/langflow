@@ -63,6 +63,12 @@ def _find_component_code(matches: list[str]) -> str | None:
 extract_component_code = extract_python_code
 
 
+def strip_component_code(text: str) -> str:
+    """The reply without its code blocks: the explanation the panel shows above the card."""
+    stripped = re.sub(ANY_CODE_BLOCK_PATTERN, "", text or "")
+    return re.sub(r"\n{3,}", "\n\n", stripped).strip()
+
+
 def extract_flow_json(text: str) -> dict | None:
     """Extract flow JSON from a ```flow_json code block in the response.
 

@@ -505,3 +505,24 @@ class TestBugsAndEdgeCases:
         result_without_tag = _find_code_blocks(text_without_tag)
         # Only the tagless version matches the generic pattern
         assert len(result_without_tag) >= len(result_with_tag)
+
+
+class TestStripComponentCode:
+    """The explanation shown above the component card is the reply without its code."""
+
+    def test_should_remove_the_code_block_and_keep_the_sentences(self):
+        from langflow.agentic.helpers.code_extraction import strip_component_code
+
+        reply = "It shouts text.\n\n```python\nclass ShoutComponent(Component):\n    pass\n```\n\nConnect **Text**."
+
+        assert strip_component_code(reply) == "It shouts text.\n\nConnect **Text**."
+
+    def test_should_remove_an_unclosed_block(self):
+        from langflow.agentic.helpers.code_extraction import strip_component_code
+
+        assert strip_component_code("Here it is.\n```python\nclass A:") == "Here it is."
+
+    def test_should_handle_empty_text(self):
+        from langflow.agentic.helpers.code_extraction import strip_component_code
+
+        assert strip_component_code("") == ""

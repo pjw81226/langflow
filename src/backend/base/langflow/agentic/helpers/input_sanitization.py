@@ -117,7 +117,13 @@ class SanitizationResult:
     """What to tell the user. Defaults to the injection wording; content violations override it."""
 
 
-def sanitize_input(text: str, *, trusted_source: bool = False) -> SanitizationResult:
+def sanitize_input(
+    text: str,
+    *,
+    trusted_source: bool = False,
+    preserve_newlines: bool = False,
+    max_length: int | None = None,
+) -> SanitizationResult:
     """Validate and sanitize input before it reaches the LLM.
 
     Checks for prompt injection and abusive content, then normalizes the input. Returns a
@@ -127,6 +133,11 @@ def sanitize_input(text: str, *, trusted_source: bool = False) -> SanitizationRe
     ``trusted_source=True`` marks text the assistant authored itself (the spec its agent
     writes for ``generate_component``) rather than a user turn, and skips the injection
     patterns only — see the module docstring for why.
+
+    ``preserve_newlines=True`` keeps line breaks, for requests where they carry meaning
+    (a pasted spec, a list of rules for a prompt). ``max_length`` replaces the default
+    cap, so a deployment that raised ``LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH`` does not
+    have the extra text cut off here.
     """
     if not text:
         return SanitizationResult(is_safe=True, sanitized_input="")
@@ -144,7 +155,7 @@ def sanitize_input(text: str, *, trusted_source: bool = False) -> SanitizationRe
             refusal=CONTENT_REFUSAL_MESSAGE,
         )
 
-    normalized = _normalize_input(text)
+    normalized = _normalize_input(text, preserve_newlines=preserve_newlines, max_length=max_length)
     return SanitizationResult(is_safe=True, sanitized_input=normalized)
 
 
@@ -161,8 +172,12 @@ def _check_injection_patterns(text: str) -> str | None:
     return None
 
 
-def _normalize_input(text: str) -> str:
-    """Normalize input by stripping whitespace and removing null bytes."""
+def _normalize_input(text: str, *, preserve_newlines: bool = False, max_length: int | None = None) -> str:
+    """Normalize input by collapsing whitespace, removing null bytes and capping the length."""
     cleaned = text.replace("\x00", "")
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned[:MAX_INPUT_LENGTH]
+    if preserve_newlines:
+        lines = [re.sub(r"[^\S\n]+", " ", line).strip() for line in cleaned.splitlines()]
+        cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    else:
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[: max_length or MAX_INPUT_LENGTH]
