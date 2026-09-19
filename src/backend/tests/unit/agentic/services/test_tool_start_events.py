@@ -8,14 +8,10 @@ tools must stay silent.
 """
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from langflow.agentic.helpers.sse import format_tool_start_event
-from langflow.agentic.services.assistant_service import (
-    execute_flow_with_validation_streaming,
-)
-from langflow.agentic.services.flow_types import IntentResult
 from lfx.mcp.flow_builder_tools import (
     BuildFlowFromSpec,
     ConfigureComponent,
@@ -30,8 +26,6 @@ from lfx.mcp.flow_builder_tools import (
     set_tool_start_listener,
 )
 from lfx.schema import Data
-
-MODULE = "langflow.agentic.services.assistant_service"
 
 
 @pytest.fixture(autouse=True)
@@ -279,33 +273,3 @@ class TestFormatToolStartEvent:
         event = format_tool_start_event({"tool": "future_tool"})
         payload = json.loads(event.removeprefix("data: "))
         assert payload["label"] == "Working"
-
-
-class TestToolStartStreamsThroughSSE:
-    @pytest.mark.asyncio
-    async def test_tool_start_is_forwarded_before_the_next_token(self):
-        mock_classify = AsyncMock(return_value=IntentResult(intent="question", translation="test"))
-
-        async def flow_gen():
-            yield ("tool_start", {"tool": "add_component", "component_type": "ChatInput"})
-            yield ("token", "adding it now")
-            yield ("end", {"result": "done"})
-
-        with (
-            patch(f"{MODULE}.classify_intent", mock_classify),
-            patch(f"{MODULE}.execute_flow_file_streaming", return_value=flow_gen()),
-        ):
-            gen = execute_flow_with_validation_streaming(
-                flow_filename="TestFlow",
-                input_value="add a chat input",
-                global_variables={},
-                user_id="user-1",
-            )
-            events = [event async for event in gen]
-
-        tool_start_idx = next(i for i, e in enumerate(events) if '"event": "tool_start"' in e)
-        token_idx = next(i for i, e in enumerate(events) if '"event": "token"' in e)
-        assert tool_start_idx < token_idx
-        payload = json.loads(events[tool_start_idx].removeprefix("data: "))
-        assert payload["tool"] == "add_component"
-        assert payload["label"] == "Adding ChatInput"

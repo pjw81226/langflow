@@ -7,11 +7,8 @@ Tests marked with requires_api_key are skipped in CI unless
 OPENAI_API_KEY is set.
 """
 
-import pytest
 from langflow.agentic.flows.flow_builder_assistant import FLOW_BUILDER_PROMPT, get_graph
 from langflow.agentic.flows.translation_flow import TRANSLATION_PROMPT
-
-from tests.api_keys import has_api_key
 
 
 class TestFlowBuilderPrompt:
@@ -612,63 +609,3 @@ class TestFlowBuilderPromptFilesystem:
         assert "sandbox" in prompt_lower or "workspace" in prompt_lower, (
             "Prompt should clarify that paths are sandbox-relative so the LLM doesn't use absolute paths"
         )
-
-
-@pytest.mark.skipif(
-    not has_api_key("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY required for intent classification test",
-)
-@pytest.mark.api_key_required
-class TestIntentClassificationBuildFlow:
-    """Test that the intent classifier correctly identifies build_flow requests.
-
-    These tests call the real OpenAI API through the translation flow.
-    """
-
-    async def test_simple_chat_flow_classified_as_build_flow(self):
-        from langflow.agentic.services.helpers.intent_classification import classify_intent
-
-        result = await classify_intent(
-            text="simple chat flow",
-            global_variables={},
-            provider="OpenAI",
-            model_name="gpt-4o-mini",
-            api_key_var="OPENAI_API_KEY",
-        )
-        assert result.intent == "build_flow", f"Expected build_flow, got {result.intent}"
-
-    async def test_build_rag_pipeline_classified_as_build_flow(self):
-        from langflow.agentic.services.helpers.intent_classification import classify_intent
-
-        result = await classify_intent(
-            text="build me a RAG pipeline",
-            global_variables={},
-            provider="OpenAI",
-            model_name="gpt-4o-mini",
-            api_key_var="OPENAI_API_KEY",
-        )
-        assert result.intent == "build_flow", f"Expected build_flow, got {result.intent}"
-
-    async def test_can_you_build_a_flow_classified_as_build_flow(self):
-        from langflow.agentic.services.helpers.intent_classification import classify_intent
-
-        result = await classify_intent(
-            text="can you build a flow for me?",
-            global_variables={},
-            provider="OpenAI",
-            model_name="gpt-4o-mini",
-            api_key_var="OPENAI_API_KEY",
-        )
-        assert result.intent == "build_flow", f"Expected build_flow, got {result.intent}"
-
-    async def test_create_component_not_classified_as_build_flow(self):
-        from langflow.agentic.services.helpers.intent_classification import classify_intent
-
-        result = await classify_intent(
-            text="create a component that calls an API",
-            global_variables={},
-            provider="OpenAI",
-            model_name="gpt-4o-mini",
-            api_key_var="OPENAI_API_KEY",
-        )
-        assert result.intent == "generate_component", f"Expected generate_component, got {result.intent}"

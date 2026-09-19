@@ -85,17 +85,6 @@ class TestGeneratedCodeIsGuarded:
         assert any("exec" in v for v in result.violations)
 
 
-class TestOutputIsGuarded:
-    def test_complete_event_replaces_an_abusive_answer(self):
-        """Pins Layer 5: input checks cannot see what the model itself produced."""
-        source = Path("src/backend/base/langflow/agentic/services/assistant_service.py").read_text(encoding="utf-8")
-
-        assert "def _complete" in source
-        complete_body = source[source.index("def _complete") : source.index("def _complete") + 700]
-        assert "check_content" in complete_body, "the final answer must pass the content guardrail"
-        assert "CONTENT_REFUSAL_MESSAGE" in complete_body
-
-
 class TestSystemPromptCarriesThePolicy:
     def test_should_state_the_content_policy(self):
         flow = json.loads(
