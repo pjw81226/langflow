@@ -190,3 +190,52 @@ def test_should_flag_orphan_node_in_multi_node_flow():
 def test_should_not_flag_orphan_in_single_node_flow():
     flow = {"data": {"nodes": [_node("A-1", "ChatInput")], "edges": []}}
     assert structural_failures(flow) == []
+
+
+def _flow(edges):
+    return {"data": {"nodes": [], "edges": edges}}
+
+
+def test_flow_has_loop_edge_should_spot_an_output_shaped_target_handle():
+    from langflow.agentic.services.flow_structural_validation import flow_has_loop_edge
+
+    feedback = {"data": {"targetHandle": {"name": "item", "id": "Loop-1"}}}
+
+    assert flow_has_loop_edge(_flow([feedback])) is True
+
+
+def test_flow_has_loop_edge_should_ignore_ordinary_edges_and_empty_flows():
+    from langflow.agentic.services.flow_structural_validation import flow_has_loop_edge
+
+    ordinary = {"data": {"targetHandle": {"fieldName": "input_value", "id": "Agent-1"}}}
+
+    assert flow_has_loop_edge(_flow([ordinary])) is False
+    assert flow_has_loop_edge({}) is False
+    assert flow_has_loop_edge(None) is False
+
+
+def test_redact_error_text_should_hide_secret_looking_tokens():
+    from langflow.agentic.services.flow_structural_validation import redact_error_text
+
+    redacted = redact_error_text("401 with key sk-abcdefghijklmnop from the provider")  # pragma: allowlist secret
+
+    assert "abcdefghijklmnop" not in redacted
+    assert "***" in redacted
+
+
+def test_redact_error_text_should_cap_long_messages():
+    from langflow.agentic.services.flow_structural_validation import MAX_REDACTED_ERROR_CHARS, redact_error_text
+
+    redacted = redact_error_text("x" * (MAX_REDACTED_ERROR_CHARS * 2))
+
+    assert len(redacted) == MAX_REDACTED_ERROR_CHARS
+    assert redacted.endswith("…")
+
+
+def test_loop_structural_caveat_should_name_the_issues_without_secrets():
+    from langflow.agentic.services.flow_structural_validation import loop_structural_caveat
+
+    caveat = loop_structural_caveat(["Loop has no data source", "token_abcdefghijkl leaked"])
+
+    assert "Loop has no data source" in caveat
+    assert "abcdefghijkl" not in caveat

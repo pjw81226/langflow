@@ -14,8 +14,11 @@ from uuid import uuid4
 from langflow.agentic.services import flow_test_result
 from langflow.agentic.services.flow_probe_input import PROBE_INPUT_TEXT, apply_probe_input
 from langflow.agentic.services.flow_run import run_working_flow
-from langflow.agentic.services.flow_structural_validation import structural_failures
-from langflow.agentic.services.flow_verification import flow_has_loop_edge, loop_structural_caveat
+from langflow.agentic.services.flow_structural_validation import (
+    flow_has_loop_edge,
+    loop_structural_caveat,
+    structural_failures,
+)
 
 # The run gets a session of its own. Without one the graph falls back to the flow
 # id, which is the Playground's default session: every test would leave a "Hello"

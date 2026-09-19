@@ -14,9 +14,49 @@ field so the agent can repair the exact wiring in a single fix turn.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 _EMPTY_VALUES: tuple[Any, ...] = (None, "", [], {})
+
+# Tokens that look like provider secrets. They are never echoed in a caveat,
+# a test report or a log. Conservative on purpose (over-redact rather than leak).
+SECRET_PATTERN = re.compile(r"\b(sk|rk|pk|key|token|bearer)[-_ ]?[A-Za-z0-9_\-]{8,}\b", re.IGNORECASE)
+MAX_REDACTED_ERROR_CHARS = 300
+
+
+def redact_error_text(text: str) -> str:
+    """Strip secret-looking tokens and cap the length for user or agent display."""
+    scrubbed = SECRET_PATTERN.sub("***", text or "")
+    if len(scrubbed) > MAX_REDACTED_ERROR_CHARS:
+        scrubbed = scrubbed[: MAX_REDACTED_ERROR_CHARS - 1].rstrip() + "…"
+    return scrubbed
+
+
+def flow_has_loop_edge(flow: dict) -> bool:
+    """True when the flow contains a loop feedback edge (an intentional cycle).
+
+    A loop feedback edge targets an ``allows_loop`` output, so its
+    ``targetHandle`` is output-shaped (carries ``name`` instead of the normal
+    ``fieldName``) — see ``lfx.graph.flow_builder.connect``. Running such a
+    cyclic flow to completion is slow and can hang, so callers validate it
+    structurally instead of running it.
+    """
+    for edge in (flow or {}).get("data", {}).get("edges", []):
+        target_handle = (edge.get("data") or {}).get("targetHandle") or {}
+        if isinstance(target_handle, dict) and "name" in target_handle and "fieldName" not in target_handle:
+            return True
+    return False
+
+
+def loop_structural_caveat(issues: list[str]) -> str:
+    """Honest, specific caveat for a loop that is structurally incomplete."""
+    detail = redact_error_text("; ".join(issues))
+    return (
+        "This flow contains a loop, so I validated its structure instead of running it, "
+        f"and it looks incomplete: {detail} Connect those inputs, then run it."
+    )
+
 
 FLOW_STRUCTURE_RETRY_TEMPLATE = """The loop flow you just built is structurally incomplete \
 (it was validated, not run):

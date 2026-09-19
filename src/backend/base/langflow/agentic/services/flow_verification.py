@@ -12,7 +12,6 @@ fix are injected so this decision logic stays pure and unit-testable.
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -22,15 +21,17 @@ from langflow.agentic.services.flow_run_error_classification import (
     RunErrorKind,
     classify_run_error,
 )
+from langflow.agentic.services.flow_structural_validation import (
+    SECRET_PATTERN,
+    flow_has_loop_edge,  # noqa: F401 - re-exported for the old assistant service
+    loop_structural_caveat,
+    redact_error_text,
+)
 from langflow.agentic.services.flow_types import MAX_FLOW_VERIFICATION_ATTEMPTS
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-# Tokens that look like provider secrets — never echo them in a caveat or
-# log. Conservative on purpose (over-redact rather than leak).
-_SECRET_RE = re.compile(r"\b(sk|rk|pk|key|token|bearer)[-_ ]?[A-Za-z0-9_\-]{8,}\b", re.IGNORECASE)
-_MAX_CAVEAT_ERROR_CHARS = 300
 _MAX_OUTPUT_PREVIEW_CHARS = 500
 
 
@@ -61,53 +62,20 @@ class FlowVerificationResult:
     probe_input: str | None = None  # probe text, when an empty Chat Input was filled
 
 
-def _redact(text: str) -> str:
-    """Strip secret-looking tokens and cap length for user/agent display."""
-    scrubbed = _SECRET_RE.sub("***", text or "")
-    if len(scrubbed) > _MAX_CAVEAT_ERROR_CHARS:
-        scrubbed = scrubbed[: _MAX_CAVEAT_ERROR_CHARS - 1].rstrip() + "…"
-    return scrubbed
-
-
 def _redact_output(text: object) -> str | None:
     """Short, secret-free preview of what a successful run produced."""
     if not isinstance(text, str) or not text.strip():
         return None
-    scrubbed = _SECRET_RE.sub("***", text.strip())
+    scrubbed = SECRET_PATTERN.sub("***", text.strip())
     if len(scrubbed) > _MAX_OUTPUT_PREVIEW_CHARS:
         scrubbed = scrubbed[: _MAX_OUTPUT_PREVIEW_CHARS - 1].rstrip() + "…"
     return scrubbed
-
-
-def flow_has_loop_edge(flow: dict) -> bool:
-    """True when the flow contains a loop feedback edge (an intentional cycle).
-
-    A loop feedback edge targets an ``allows_loop`` output, so its
-    ``targetHandle`` is output-shaped (carries ``name`` instead of the normal
-    ``fieldName``) — see ``lfx.graph.flow_builder.connect``. Running such a
-    cyclic flow to completion for verification is slow and can hang, so the
-    caller skips the real run and delivers a structural-only result instead.
-    """
-    for edge in (flow or {}).get("data", {}).get("edges", []):
-        target_handle = (edge.get("data") or {}).get("targetHandle") or {}
-        if isinstance(target_handle, dict) and "name" in target_handle and "fieldName" not in target_handle:
-            return True
-    return False
 
 
 def loop_skipped_caveat() -> str:
     return (
         "This flow contains a loop, so I built and structurally validated it but "
         "didn't run it here — run it yourself to see the results."
-    )
-
-
-def loop_structural_caveat(issues: list[str]) -> str:
-    """Honest, specific caveat for a loop that is structurally incomplete."""
-    detail = _redact("; ".join(issues))
-    return (
-        "This flow contains a loop, so I validated its structure instead of running it, "
-        f"and it looks incomplete: {detail} Connect those inputs, then run it."
     )
 
 
@@ -167,12 +135,15 @@ def _flow_fingerprint(flow: dict) -> str:
 def _external_caveat(error: str) -> str:
     return (
         "I built the flow and it's structurally valid, but I couldn't fully run it here "
-        f"because: {_redact(error)}. It should work once that is available on your side."
+        f"because: {redact_error_text(error)}. It should work once that is available on your side."
     )
 
 
 def _failed_caveat(attempts: int, error: str) -> str:
-    return f"I built the flow but couldn't get it to run after {attempts} attempt(s). Last error: {_redact(error)}."
+    return (
+        f"I built the flow but couldn't get it to run after {attempts} attempt(s). "
+        f"Last error: {redact_error_text(error)}."
+    )
 
 
 async def verify_built_flow(
@@ -221,7 +192,7 @@ async def verify_built_flow(
         last_error = result.get("error") or "unknown error"
         kind = classify_run_error(last_error)
         failure = {
-            "error": _redact(last_error),
+            "error": redact_error_text(last_error),
             "error_kind": kind.value,
             "error_component": result.get("error_component"),
             "metrics": metrics,
