@@ -30,6 +30,23 @@ class TestAssistantRequest:
         assert request.provider is None
         assert request.session_id is None
 
+    def test_should_default_mode_to_none(self):
+        """No mode keeps the classifier-driven routing (backward compatible)."""
+        request = AssistantRequest(flow_id="test-flow-id")
+
+        assert request.mode is None
+
+    @pytest.mark.parametrize("mode", ["build", "ask"])
+    def test_should_accept_the_panel_modes(self, mode):
+        request = AssistantRequest(flow_id="test-flow-id", mode=mode)
+
+        assert request.mode == mode
+        assert AssistantRequest.model_validate_json(request.model_dump_json()).mode == mode
+
+    def test_should_reject_an_unknown_mode(self):
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id", mode="chat")
+
     def test_should_create_with_all_fields(self):
         """Should create request with all fields populated."""
         request = AssistantRequest(

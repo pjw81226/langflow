@@ -81,6 +81,7 @@ from langflow.agentic.services.flow_structural_validation import (
     structural_failures,
 )
 from langflow.agentic.services.flow_types import (
+    ASK_MODE_PREAMBLE,
     EDIT_CONTINUATION_INPUT,
     EXECUTION_RETRY_TEMPLATE,
     FLOW_BUILDER_ASSISTANT_FLOW,
@@ -93,7 +94,9 @@ from langflow.agentic.services.flow_types import (
     PLAN_APPROVAL_INPUT,
     VALIDATION_RETRY_TEMPLATE,
     VALIDATION_UI_DELAY_SECONDS,
+    AssistantMode,
     FlowExecutionError,
+    IntentResult,
 )
 from langflow.agentic.services.flow_verification import (
     FlowVerificationResult,
@@ -354,6 +357,7 @@ async def execute_flow_with_validation(
     model_name: str | None = None,
     api_key_var: str | None = None,
     trusted_source: bool = False,
+    mode: AssistantMode | None = None,
 ) -> dict:
     """Execute flow and validate the generated component code.
 
@@ -365,6 +369,9 @@ async def execute_flow_with_validation(
     ``generate_component`` tool's spec) rather than a user turn, so the
     injection guardrail — already applied to the user turn that led here —
     is not re-run on the assistant's own words.
+
+    ``mode="ask"`` is a read-only help turn: one run, no component validation
+    (a code sample in an answer is not a generated component) and no canvas events.
     """
     # Layer 1: Input sanitization
     sanitization = sanitize_input(input_value, trusted_source=trusted_source)
@@ -373,6 +380,29 @@ async def execute_flow_with_validation(
         return {"result": sanitization.refusal}
 
     current_input = sanitization.sanitized_input
+
+    if mode == "ask":
+        set_agent_run_iterations(_iterations_from_globals(global_variables))
+        try:
+            result = await execute_flow_file(
+                flow_filename=flow_filename,
+                input_value=ASK_MODE_PREAMBLE + current_input,
+                global_variables=global_variables,
+                verbose=True,
+                user_id=user_id,
+                session_id=session_id,
+                provider=provider,
+                model_name=model_name,
+                api_key_var=api_key_var,
+            )
+        finally:
+            reset_agent_run_iterations()
+        dropped = drain_flow_events()
+        if dropped:
+            logger.warning("assistant.ask_mode.dropped_canvas_events count=%d", len(dropped))
+        reset_working_flow()
+        return {**result, "mode": "ask"}
+
     attempt = 0
 
     while attempt <= max_retries:
@@ -622,8 +652,13 @@ async def execute_flow_with_validation_streaming(
     is_superuser: bool = False,
     history_limit: int | None = None,
     iterations_limit: int | None = None,
+    mode: AssistantMode | None = None,
 ) -> AsyncGenerator[str, None]:
     """Execute flow with validation, yielding SSE progress and token events.
+
+    ``mode`` is the panel mode the user picked. ``None`` and ``"build"`` keep the
+    classifier-driven routing. ``"ask"`` is a read-only help turn: no intent
+    classification, no canvas-mutating agent, no restore point, no canvas events.
 
     ``is_superuser`` gates the SSE error event's ``detail.raw_cause`` (the raw
     internal error) — regular users get step/component/recommendation only.
@@ -655,6 +690,18 @@ async def execute_flow_with_validation_streaming(
     # model's pre-write state, so a turn that still fails can put the cache back instead of
     # poisoning every later request for that model.
     provisional_remediations: dict[tuple[str | None, str | None], dict] = {}
+    is_ask = mode == "ask"
+
+    def _drain_canvas_events() -> list[dict]:
+        """Queued canvas events for this turn. Ask turns are read-only, so they are dropped.
+
+        The queue is still drained so nothing leaks into the next request.
+        """
+        events = drain_flow_events()
+        if is_ask and events:
+            logger.warning("assistant.ask_mode.dropped_canvas_events count=%d", len(events))
+            return []
+        return events
 
     def _rollback_provisional_remediations() -> None:
         for (prov, mdl), snapshot in provisional_remediations.items():
@@ -705,6 +752,8 @@ async def execute_flow_with_validation_streaming(
         # fallback/remediation shows as an (i) instead of looking like nothing happened.
         if recovered_notices:
             payload["notices"] = recovered_notices
+        if mode:
+            payload["mode"] = mode
         return format_complete_event(payload)
 
     # Layer 1: Input sanitization (before any LLM call)
@@ -735,27 +784,33 @@ async def execute_flow_with_validation_streaming(
 
     # Recent turns + canvas state route follow-up edits to build_flow instead of
     # question/off_topic; same turn budget as the main prompt (honors /history N).
-    intent_history_limit = history_limit if history_limit is not None else history_turn_limit()
-    recent_turns = (
-        get_conversation_buffer().get_recent(user_id, session_id, limit=intent_history_limit)
-        if user_id and session_id
-        else []
-    )
-    intent_context = build_intent_context(recent_turns, current_flow_summary)
+    if is_ask:
+        # The user already said this is a question, so skip the classifier's LLM
+        # call. Every routing flag below stays False: no builder agent, no restore
+        # point, no plan gate, no no-action guard.
+        intent_result = IntentResult(translation=current_input, intent="question")
+    else:
+        intent_history_limit = history_limit if history_limit is not None else history_turn_limit()
+        recent_turns = (
+            get_conversation_buffer().get_recent(user_id, session_id, limit=intent_history_limit)
+            if user_id and session_id
+            else []
+        )
+        intent_context = build_intent_context(recent_turns, current_flow_summary)
 
-    # A separate session keeps TranslationFlow messages out of assistant memory;
-    # user_id is explicit since the ContextVar binds later (see TestCurrentUserIdContextVarIsolation).
-    intent_result = await classify_intent(
-        text=current_input,
-        global_variables=global_variables,
-        user_id=user_id,
-        provider=provider,
-        model_name=model_name,
-        api_key_var=api_key_var,
-        context=intent_context,
-    )
-    # TranslationFlow's LLM cost is the first contributor to the per-turn total.
-    _accumulate(intent_result.tokens, phase="intent")
+        # A separate session keeps TranslationFlow messages out of assistant memory;
+        # user_id is explicit since the ContextVar binds later (see TestCurrentUserIdContextVarIsolation).
+        intent_result = await classify_intent(
+            text=current_input,
+            global_variables=global_variables,
+            user_id=user_id,
+            provider=provider,
+            model_name=model_name,
+            api_key_var=api_key_var,
+            context=intent_context,
+        )
+        # TranslationFlow's LLM cost is the first contributor to the per-turn total.
+        _accumulate(intent_result.tokens, phase="intent")
 
     # Layer 4: Off-topic rejection (saves LLM API costs).
     # This early-return is BEFORE the try/finally, and the canvas was
@@ -854,7 +909,8 @@ async def execute_flow_with_validation_streaming(
     _avail = _provider_policy.filter(_available_provider_names)
     if _avail:
         _model_parts.append("providers with credentials configured: " + ", ".join(_avail))
-    if _model_parts:
+    # A build hint: an Ask turn configures nothing, so it would only be noise there.
+    if _model_parts and not is_ask:
         current_input = (
             f"[Available language models — these are a DEFAULT only. If the user explicitly named a "
             f"model and no Model provider policy notice rejects it, set EXACTLY that model and IGNORE "
@@ -886,6 +942,9 @@ async def execute_flow_with_validation_streaming(
             "'for review' — report edits as already APPLIED/DONE.]\n\n" + current_input
         )
 
+    if is_ask:
+        current_input = ASK_MODE_PREAMBLE + current_input
+
     # Capture the original user prompt BEFORE history/canvas injection so we
     # can record it verbatim in the buffer at end-of-turn. The wrapped
     # input is what the LLM sees; the recorded user message is what the
@@ -902,8 +961,9 @@ async def execute_flow_with_validation_streaming(
     # otherwise never counts as a run request, the edit becomes a review card and
     # the run is dropped after approval. OR keeps every case detected today.
     _translated_input = intent_result.translation if isinstance(intent_result.translation, str) else ""
-    run_requested = _looks_like_run_request(original_user_input) or (
-        bool(_translated_input.strip()) and _looks_like_run_request(_translated_input)
+    run_requested = not is_ask and (
+        _looks_like_run_request(original_user_input)
+        or (bool(_translated_input.strip()) and _looks_like_run_request(_translated_input))
     )
     continuation_expected = run_requested and original_user_input.strip() not in (
         PLAN_APPROVAL_INPUT,
@@ -1122,7 +1182,7 @@ async def execute_flow_with_validation_streaming(
                                     last_set_flow,
                                     set_flow_applied,
                                 ) = _reconcile_flow_updates(
-                                    drain_flow_events(),
+                                    _drain_canvas_events(),
                                     auto_apply_flow=auto_apply_flow,
                                     saw_set_flow=saw_set_flow,
                                     saw_run=saw_run,
@@ -1159,8 +1219,10 @@ async def execute_flow_with_validation_streaming(
                             elif event_type == "tool_start":
                                 # Live indicator: forwarded the moment a mutating tool
                                 # starts, unlike flow_update which drains on tokens.
-                                yield format_tool_start_event(event_data)
-                            elif event_type == "flow_preview":
+                                # Never on a read-only Ask turn.
+                                if not is_ask:
+                                    yield format_tool_start_event(event_data)
+                            elif event_type == "flow_preview" and not is_ask:
                                 has_flow_updates = True
                                 yield format_flow_preview_event(
                                     flow_data=event_data.get("flow", {}),
@@ -1290,7 +1352,7 @@ async def execute_flow_with_validation_streaming(
                         last_set_flow,
                         set_flow_applied,
                     ) = _reconcile_flow_updates(
-                        drain_flow_events(),
+                        _drain_canvas_events(),
                         auto_apply_flow=auto_apply_flow,
                         saw_set_flow=saw_set_flow,
                         saw_run=saw_run,
@@ -1360,7 +1422,7 @@ async def execute_flow_with_validation_streaming(
                 last_set_flow,
                 set_flow_applied,
             ) = _reconcile_flow_updates(
-                drain_flow_events(),
+                _drain_canvas_events(),
                 auto_apply_flow=auto_apply_flow,
                 saw_set_flow=saw_set_flow,
                 saw_run=saw_run,
@@ -1461,7 +1523,9 @@ async def execute_flow_with_validation_streaming(
             # Fallback: check for flow JSON in the response text.
             # This only triggers if the agent produced raw JSON instead of using
             # its tools -- likely a prompt or tool execution issue.
-            flow_data = extract_flow_json(response_text)
+            # Skipped on Ask turns: a flow JSON sample inside an answer is an
+            # illustration, not something to put on the canvas.
+            flow_data = None if is_ask else extract_flow_json(response_text)
             if flow_data and "data" in flow_data and "nodes" in flow_data.get("data", {}):
                 logger.warning("Flow data found as text instead of via tools -- agent may not be using tools correctly")
                 yield format_flow_preview_event(

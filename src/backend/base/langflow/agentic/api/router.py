@@ -364,6 +364,7 @@ async def assist(
             provider=ctx.provider,
             model_name=ctx.model_name,
             api_key_var=ctx.api_key_name,
+            mode=request.mode,
         )
 
 
@@ -408,6 +409,7 @@ async def assist_stream(
                 is_superuser=bool(current_user.is_superuser),
                 history_limit=request.history_limit,
                 iterations_limit=request.iterations_limit,
+                mode=request.mode,
             ):
                 yield event
 

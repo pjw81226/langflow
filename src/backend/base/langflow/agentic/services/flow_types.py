@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException
 
@@ -55,6 +55,21 @@ EDIT_CONTINUATION_INPUT = (
     "The proposed canvas edits were applied. Continue with the remaining steps of my "
     "previous request (for example, running the flow). If editing was the entire "
     "request, just confirm briefly."
+)
+
+# Explicit panel mode sent by the UI. ``None`` keeps the classifier-driven
+# routing; "ask" is a read-only help turn that must never touch the canvas.
+AssistantMode = Literal["build", "ask"]
+
+# Prepended to the agent input on Ask turns. The default assistant flow
+# advertises building, so the turn itself has to state that this one is
+# read-only and where a build request belongs.
+ASK_MODE_PREAMBLE = (
+    "[Panel mode: ASK. This is a read-only help turn. You cannot add, remove, connect, configure, "
+    "build or run anything, so never say or imply that you did. Answer the question. If the user "
+    "wants something built, changed, fixed or run, say in one or two sentences what would be done "
+    "and tell them to switch the panel to Build and send the same request there. Reply in the "
+    "language of the user's message.]\n\n"
 )
 
 OFF_TOPIC_REFUSAL_MESSAGE = (

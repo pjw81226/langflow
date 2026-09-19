@@ -57,6 +57,9 @@ class AssistantRequest(BaseModel):
     session_id: str | None = None
     history_limit: int | None = Field(None, ge=0, le=100)
     iterations_limit: int | None = Field(None, ge=1, le=200)
+    # Panel mode chosen by the user. None keeps the classifier-driven routing;
+    # "ask" is a read-only help turn that never changes the canvas.
+    mode: Literal["build", "ask"] | None = None
 
     @field_validator("input_value")
     @classmethod
