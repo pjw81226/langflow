@@ -1,8 +1,7 @@
 """Security gates on the agentic assistant's in-process code-execution path (Issue 15).
 
 The assistant generates component code and EXECUTES it in-process (validate_component_runtime ->
-build_custom_component_template -> compile/exec; and again in the user-components overlay). These
-tests assert the two hardening gates:
+build_custom_component_template -> compile/exec). These tests assert the two hardening gates:
   (a) the agentic endpoints are unreachable (404) unless agentic_experience is enabled;
   (b) the execution entry points refuse when allow_custom_components is disabled.
 """
@@ -88,21 +87,3 @@ async def test_validate_component_runtime_refuses_unsafe_code_before_build():
     assert result is not None
     assert "security validation" in result.lower()
     mock_build.assert_not_called()
-
-
-def test_overlay_skips_user_components_without_custom_components():
-    """With allow_custom_components=false the overlay returns only the base registry (no exec)."""
-    from langflow.agentic.services import user_components_overlay as overlay
-
-    base = {"ChatInput": {}}
-    with (
-        patch.object(overlay, "load_local_registry", return_value=base),
-        patch("lfx.services.deps.get_settings_service", return_value=_settings(allow_custom=False)),
-        patch.object(overlay, "get_user_components_dir") as mock_dir,
-        patch.object(overlay, "_build_overlay_entry") as mock_entry,
-    ):
-        result = overlay.load_registry_with_user_overlay(user_id="u1")
-
-    assert result == base
-    assert mock_dir.call_count == 0  # never walked the user's .components dir
-    assert mock_entry.call_count == 0  # never built/executed an overlay entry

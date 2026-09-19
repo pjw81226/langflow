@@ -9,13 +9,6 @@ from pathlib import Path
 
 from lfx.base.models.model_metadata import MODEL_PROVIDER_METADATA, get_provider_param_mapping
 
-import lfx
-from langflow.agentic.helpers.assistant_workspace import resolve_assistant_fs_root
-
-# Resolves only from the monorepo root; inject_lfx_components_path rewrites it to
-# an absolute path at runtime so packaged installs (Desktop, pip, Docker) work.
-LFX_COMPONENTS_PATH_SENTINEL = "./src/lfx/src/lfx/components/"
-
 logger = logging.getLogger(__name__)
 
 
@@ -231,69 +224,6 @@ def inject_model_into_flow(
     return flow_data
 
 
-def inject_lfx_components_path(flow_data: dict) -> dict:
-    """Rewrite Directory nodes targeting bundled lfx components to an absolute path.
-
-    The bundled LangflowAssistant flow hardcodes a relative path that only
-    resolves from the monorepo root. In any packaged install the process CWD
-    is different and the Directory component raises "Path ... must exist and
-    be a directory.", causing the Langflow Assistant to fail with
-    "An internal error occurred while executing the flow." on first use.
-
-    This function walks the flow nodes and, for each Directory node whose
-    `path` value equals LFX_COMPONENTS_PATH_SENTINEL, replaces it with the
-    absolute path derived from the installed lfx package.
-    """
-    absolute_path = str(Path(lfx.__file__).parent / "components")
-
-    for node in flow_data.get("data", {}).get("nodes", []):
-        node_data = node.get("data", {})
-        if node_data.get("type") != "Directory":
-            continue
-        path_field = node_data.get("node", {}).get("template", {}).get("path")
-        if path_field and path_field.get("value") == LFX_COMPONENTS_PATH_SENTINEL:
-            path_field["value"] = absolute_path
-
-    return flow_data
-
-
-def inject_assistant_fs_root(flow_data: dict) -> dict:
-    """Replace empty FileSystemTool.root_path with the resolved sandbox path.
-
-    The shipped LangflowAssistant flow leaves FileSystemTool.root_path empty
-    on purpose so the path can be resolved per-host at runtime (see
-    helpers.assistant_workspace.resolve_assistant_fs_root). Hardcoding any
-    value in the JSON would break portability across macOS, Linux, Windows
-    and Docker.
-
-    Only nodes whose root_path value is empty/whitespace are rewritten — an
-    operator's explicit override is preserved.
-
-    When ``resolve_assistant_fs_root`` returns ``None`` (PR #13031's per-user
-    isolation module is present), this function is a no-op: any injected
-    value would be misread as a relative sub_path under the user's namespace
-    and break the per-user boundary. The component handles its own resolution.
-    """
-    resolved_path = resolve_assistant_fs_root()
-    if resolved_path is None:
-        return flow_data
-    resolved = str(resolved_path)
-
-    for node in flow_data.get("data", {}).get("nodes", []):
-        node_data = node.get("data", {})
-        if node_data.get("type") != "FileSystemTool":
-            continue
-        root_field = node_data.get("node", {}).get("template", {}).get("root_path")
-        if not root_field:
-            continue
-        current = root_field.get("value", "")
-        if isinstance(current, str) and current.strip():
-            continue
-        root_field["value"] = resolved
-
-    return flow_data
-
-
 # Cache parsed templates by path+stat: re-reading + json.loads on every request
 # (x4 on validation retries) blocked the event loop; mtime/size change re-parses.
 _FLOW_TEMPLATE_CACHE: dict[str, tuple[tuple[int, int], dict]] = {}
@@ -351,8 +281,5 @@ def load_and_prepare_flow(
         with contextlib.suppress(TypeError, ValueError):
             iterations = int(raw_iterations)
     flow_data = inject_iterations_into_flow(flow_data, iterations)
-
-    flow_data = inject_lfx_components_path(flow_data)
-    flow_data = inject_assistant_fs_root(flow_data)
 
     return json.dumps(flow_data)
