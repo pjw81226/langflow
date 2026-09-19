@@ -245,6 +245,7 @@ export function FlowEditCarousel({
             <>
               <button
                 type="button"
+                aria-label={t("assistant.flowEdit.previous")}
                 className="rounded p-0.5 hover:bg-muted disabled:opacity-30"
                 onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
                 disabled={currentIndex === 0}
@@ -256,6 +257,7 @@ export function FlowEditCarousel({
               </span>
               <button
                 type="button"
+                aria-label={t("assistant.flowEdit.next")}
                 className="rounded p-0.5 hover:bg-muted disabled:opacity-30"
                 onClick={() =>
                   setCurrentIndex((i) => Math.min(actions.length - 1, i + 1))

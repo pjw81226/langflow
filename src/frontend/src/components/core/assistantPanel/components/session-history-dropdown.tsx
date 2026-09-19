@@ -2,7 +2,6 @@
  * Dropdown showing saved assistant sessions with switch and delete actions.
  */
 
-import moment from "moment";
 import { useTranslation } from "react-i18next";
 import ForwardedIconComponent from "@/components/common/genericIconComponent";
 import ShadTooltip from "@/components/common/shadTooltipComponent";
@@ -15,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatRelativeTime } from "@/utils/format-date";
 import { cn } from "@/utils/utils";
 import type { SessionHistoryEntry } from "../assistant-panel.types";
 
@@ -109,10 +109,13 @@ export function SessionHistoryDropdown({
                       count: entry.messageCount,
                     })}
                     {" · "}
-                    {moment(entry.lastActiveAt).fromNow()}
+                    {formatRelativeTime(entry.lastActiveAt)}
                   </span>
                 </div>
                 <button
+                  type="button"
+                  aria-label={t("assistant.deleteSession")}
+                  title={t("assistant.deleteSession")}
                   className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
                   data-testid={`delete-session-${entry.sessionId}`}
                   onClick={(e) => {

@@ -1,5 +1,5 @@
 import i18n from "@/i18n";
-import { uiLocale } from "../format-date";
+import { formatRelativeTime, uiLocale } from "../format-date";
 
 describe("uiLocale", () => {
   const original = i18n.language;
@@ -38,5 +38,36 @@ describe("uiLocale", () => {
 
     expect(english).toBe("8/27");
     expect(portuguese).toBe("27/08");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  const original = i18n.language;
+  const now = new Date("2026-08-27T12:00:00Z");
+
+  afterEach(() => {
+    i18n.language = original;
+  });
+
+  it("should pick the largest unit that fits", () => {
+    i18n.language = "en";
+
+    expect(formatRelativeTime("2026-08-27T11:57:00Z", now)).toBe(
+      "3 minutes ago",
+    );
+    expect(formatRelativeTime("2026-08-27T07:00:00Z", now)).toBe("5 hours ago");
+    expect(formatRelativeTime("2026-08-25T12:00:00Z", now)).toBe("2 days ago");
+  });
+
+  it("should follow the UI language", () => {
+    i18n.language = "ko";
+
+    expect(formatRelativeTime("2026-08-27T11:57:00Z", now)).toBe("3분 전");
+  });
+
+  it("should not report a bare zero for something that just happened", () => {
+    i18n.language = "en";
+
+    expect(formatRelativeTime(now, now)).toBe("now");
   });
 });
