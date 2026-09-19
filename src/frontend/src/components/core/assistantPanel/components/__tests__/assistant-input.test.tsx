@@ -208,6 +208,56 @@ describe("AssistantInput", () => {
     });
   });
 
+  describe("prefill", () => {
+    it("should_put_a_starter_prompt_into_the_draft_without_sending_it", () => {
+      const onSend = jest.fn();
+      const onDraftChange = jest.fn();
+      const { rerender } = render(
+        <AssistantInput
+          {...defaultProps}
+          onSend={onSend}
+          onDraftChange={onDraftChange}
+        />,
+      );
+
+      rerender(
+        <AssistantInput
+          {...defaultProps}
+          onSend={onSend}
+          onDraftChange={onDraftChange}
+          prefill={{ text: "What does this flow do?", nonce: 1 }}
+        />,
+      );
+
+      expect(screen.getByRole("textbox")).toHaveValue(
+        "What does this flow do?",
+      );
+      expect(onDraftChange).toHaveBeenLastCalledWith("What does this flow do?");
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
+    it("should_apply_the_same_example_again_after_the_user_cleared_it", () => {
+      const { rerender } = render(
+        <AssistantInput
+          {...defaultProps}
+          prefill={{ text: "What does this flow do?", nonce: 1 }}
+        />,
+      );
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "" } });
+
+      rerender(
+        <AssistantInput
+          {...defaultProps}
+          prefill={{ text: "What does this flow do?", nonce: 2 }}
+        />,
+      );
+
+      expect(screen.getByRole("textbox")).toHaveValue(
+        "What does this flow do?",
+      );
+    });
+  });
+
   describe("placeholder behavior", () => {
     it("should show 'Generating response...' during 'generating' step (Q&A)", () => {
       render(

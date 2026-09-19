@@ -271,4 +271,25 @@ describe("AssistantPanel scoped model authorization", () => {
       expect(localStorage.getItem("langflow-assistant-mode")).toBe("build");
     });
   });
+
+  describe("starter prompts", () => {
+    it("shows examples for the current mode in an empty panel", () => {
+      localStorage.setItem("langflow-assistant-mode", "ask");
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+      expect(
+        screen.getByTestId("assistant-starter-prompts"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("What does this flow do?")).toBeInTheDocument();
+    });
+
+    it("disables the examples while nothing can be sent", () => {
+      mockCatalogReady = false;
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+      expect(screen.getByTestId("assistant-starter-build-0")).toBeDisabled();
+    });
+  });
 });

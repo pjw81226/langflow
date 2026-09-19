@@ -19,6 +19,7 @@ import { AssistantHeader } from "./components/assistant-header";
 import { AssistantInput } from "./components/assistant-input";
 import { AssistantMessageItem } from "./components/assistant-message";
 import { AssistantNoModelsState } from "./components/assistant-no-models-state";
+import { AssistantStarterPrompts } from "./components/assistant-starter-prompts";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
 // Direct paths: tests mock the ./hooks barrel wholesale.
 import { useAssistantDock } from "./hooks/use-assistant-dock";
@@ -349,6 +350,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
   const [hasUserResized, setHasUserResized] = useState(false);
   const [isMentionOpen, setIsMentionOpen] = useState(false);
+  // Starter prompts: what was picked, and whether the user has started typing.
+  const [prefill, setPrefill] = useState<{ text: string; nonce: number }>();
+  const [hasDraft, setHasDraft] = useState(draftMessageCache.length > 0);
 
   // Track if panel has ever shown messages (to keep expanded size after new session)
   useEffect(() => {
@@ -591,7 +595,22 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
           </StickToBottom>
         ) : (
           <>
-            {(useExpandedSize || isMentionOpen) && <div className="flex-1" />}
+            {/* Examples until the first keystroke; the mention list needs the room. */}
+            {!hasDraft && !isMentionOpen ? (
+              <AssistantStarterPrompts
+                mode={mode}
+                variant={useExpandedSize ? "expanded" : "compact"}
+                disabled={!isCatalogReady || !hasEnabledModels}
+                onSelect={(text) =>
+                  setPrefill((prev) => ({
+                    text,
+                    nonce: (prev?.nonce ?? 0) + 1,
+                  }))
+                }
+              />
+            ) : (
+              (useExpandedSize || isMentionOpen) && <div className="flex-1" />
+            )}
             <AssistantInput
               onSend={handleAuthorizedSend}
               onStop={handleStopGeneration}
@@ -603,7 +622,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               draftMessage={draftMessageCache}
               onDraftChange={(draft) => {
                 draftMessageCache = draft;
+                setHasDraft(draft.length > 0);
               }}
+              prefill={prefill}
               isRefiningPlan={isRefiningPlan}
               onMentionOpenChange={setIsMentionOpen}
               mode={mode}

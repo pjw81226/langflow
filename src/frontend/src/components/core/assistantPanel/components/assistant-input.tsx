@@ -97,6 +97,11 @@ interface AssistantInputProps {
   onModeChange?: (mode: AssistantMode) => void;
   /** When provided, the composer shows the "Test flow" button. */
   onTestFlow?: (model: AssistantModel | null) => void;
+  /**
+   * Text to put into the composer from outside (a starter prompt). The nonce
+   * makes picking the same example twice count as two requests.
+   */
+  prefill?: { text: string; nonce: number };
 }
 
 export function AssistantInput({
@@ -115,6 +120,7 @@ export function AssistantInput({
   mode = "build",
   onModeChange,
   onTestFlow,
+  prefill,
 }: AssistantInputProps) {
   const { t } = useTranslation();
   // Server-owned cap (LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH), mirrored through /config so the
@@ -154,6 +160,21 @@ export function AssistantInput({
     setMessage(value);
     onDraftChange?.(value);
   };
+
+  // A starter prompt fills the draft and hands the caret over, ready to edit.
+  const prefillNonce = prefill?.nonce;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the nonce; the text rides along
+  useEffect(() => {
+    if (prefillNonce === undefined || !prefill) return;
+    setMessage(prefill.text);
+    onDraftChange?.(prefill.text);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(prefill.text.length, prefill.text.length);
+    });
+  }, [prefillNonce]);
 
   const mentions = useComponentMentions({
     value: message,
