@@ -4,6 +4,7 @@ import type {
   AgenticProgressState,
   AgenticResult,
   AgenticStepType,
+  AgenticTestResult,
   AssistantMode,
   AssistantModelNotice,
   FlowAction,
@@ -25,6 +26,11 @@ export interface AssistantMessage {
   /** Panel mode this turn was sent in. Absent on messages stored before modes
    * existed, which were all build turns. */
   mode?: AssistantMode;
+  /** Set on both messages of a "Test flow" turn: no agent ran and the canvas
+   * cannot change, so it is never locked for it. */
+  action?: "test_flow";
+  /** Outcome of the flow's test run, rendered as a result card. */
+  testResult?: AgenticTestResult;
   /** What was actually sent to the backend when it differs from the shown
    * ``content`` (protocol strings such as the plan approval signal). A retry
    * must resend this, never the localized display text. */

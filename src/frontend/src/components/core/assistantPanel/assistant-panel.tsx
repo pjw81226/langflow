@@ -6,6 +6,7 @@ import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
 import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import useFlowStore from "@/stores/flowStore";
+import { usePlaygroundStore } from "@/stores/playgroundStore";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
 import type {
@@ -57,6 +58,7 @@ interface AssistantInputWithScrollProps {
   isRefiningPlan?: boolean;
   mode: AssistantMode;
   onModeChange: (mode: AssistantMode) => void;
+  onTestFlow: (model: AssistantModel | null) => void;
 }
 
 function AssistantInputWithScroll({
@@ -71,6 +73,7 @@ function AssistantInputWithScroll({
   isRefiningPlan,
   mode,
   onModeChange,
+  onTestFlow,
 }: AssistantInputWithScrollProps) {
   const { scrollToBottom } = useStickToBottomContext();
 
@@ -92,6 +95,7 @@ function AssistantInputWithScroll({
       isRefiningPlan={isRefiningPlan}
       mode={mode}
       onModeChange={onModeChange}
+      onTestFlow={onTestFlow}
       compact
     />
   );
@@ -127,6 +131,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     isProcessing,
     currentStep,
     handleSend,
+    handleTestFlow,
+    handleFixFlow,
     handleApprove,
     handleUpdateFlowAction,
     handleApplyFlowProposal,
@@ -194,6 +200,13 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     },
     [canSendWithModel, handleSend, mode],
   );
+  const handleAuthorizedTest = useCallback(
+    (model: AssistantModel | null) => {
+      if (!canSendWithModel(model)) return;
+      void handleTestFlow(model);
+    },
+    [canSendWithModel, handleTestFlow],
+  );
   const handleAuthorizedRetry = useCallback(
     (messageId: string) => {
       if (!isCatalogReady) return;
@@ -201,6 +214,35 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     },
     [canSendWithModel, handleRetry, isCatalogReady],
   );
+
+  // Only the latest result card gets actions: "Test again" on an older card
+  // would read as testing that older state.
+  const latestTestResultId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant" && messages[i].testResult) {
+        return messages[i].id;
+      }
+    }
+    return undefined;
+  }, [messages]);
+
+  // The Playground only chats: it needs a Chat Input or a Chat Output.
+  const hasChatIO = useFlowStore(
+    (state) =>
+      (state.inputs ?? []).some((input) => input.type === "ChatInput") ||
+      (state.outputs ?? []).some((output) => output.type === "ChatOutput"),
+  );
+  const handleOpenPlayground = useCallback(() => {
+    // Set the store directly: the toolbar's own trigger forces fullscreen,
+    // which makes the rest of the page, this panel included, inert.
+    const playground = usePlaygroundStore.getState();
+    playground.setIsFullscreen(false);
+    playground.setIsOpen(true);
+    // A floating panel would sit on top of it and close on the next click anyway.
+    if (!isDocked) onClose();
+  }, [isDocked, onClose]);
+
+  const canRunActions = isCatalogReady && hasEnabledModels && !isProcessing;
 
   // v1 scope: only the LATEST assistant message with a restore point offers
   // Revert — restoring an older point mid-chain would confuse the timeline.
@@ -216,12 +258,16 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const setAssistantProcessing = useAssistantManagerStore(
     (state) => state.setAssistantProcessing,
   );
-  // An ask turn is read-only, so the canvas stays editable while it streams.
-  // Messages stored before modes existed carry none and count as build turns.
-  const streamingMode = messages.find(
+  // An ask turn is read-only and a test turn only runs the flow, so the canvas
+  // stays editable while either streams. Messages stored before modes existed
+  // carry none and count as build turns.
+  const streamingMessage = messages.find(
     (m) => m.role === "assistant" && m.status === "streaming",
-  )?.mode;
-  const locksCanvas = isProcessing && streamingMode !== "ask";
+  );
+  const locksCanvas =
+    isProcessing &&
+    streamingMessage?.mode !== "ask" &&
+    streamingMessage?.action !== "test_flow";
   useEffect(() => {
     setAssistantProcessing(locksCanvas);
     return () => setAssistantProcessing(false);
@@ -507,6 +553,17 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   onAcknowledgeValidation={handleAcknowledgeValidation}
                   isLatestRestorePoint={msg.id === latestRestorePointId}
                   onReverted={handleMarkReverted}
+                  {...(msg.id === latestTestResultId && canRunActions
+                    ? {
+                        onTestFlow: () => void handleTestFlow(null),
+                        onFixFlow: (id: string) => void handleFixFlow(id, null),
+                      }
+                    : {})}
+                  onOpenPlayground={
+                    msg.id === latestTestResultId && hasChatIO
+                      ? handleOpenPlayground
+                      : undefined
+                  }
                 />
               ))}
             </StickToBottom.Content>
@@ -524,6 +581,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               isRefiningPlan={isRefiningPlan}
               mode={mode}
               onModeChange={setMode}
+              onTestFlow={handleAuthorizedTest}
             />
           </StickToBottom>
         ) : (
@@ -545,6 +603,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               onMentionOpenChange={setIsMentionOpen}
               mode={mode}
               onModeChange={setMode}
+              onTestFlow={handleAuthorizedTest}
             />
           </>
         )}

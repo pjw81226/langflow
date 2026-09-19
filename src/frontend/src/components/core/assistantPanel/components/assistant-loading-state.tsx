@@ -27,6 +27,7 @@ const FLOW_BUILD_ICON_STEPS = new Set([
   "orchestrating",
   "building_flow",
   "flow_built",
+  "verifying_flow",
 ]);
 
 // SVG `d` of the three wavy strokes that form the Langflow assistant glyph,
@@ -159,7 +160,12 @@ function AssistantLoadingStateComponent({
         className="flex items-center gap-2 text-sm font-medium text-foreground"
       >
         <LangflowDrawingIcon size={24} />
-        <span>{progress.message || t("assistant.working")}</span>
+        <span>
+          {progress.step === "verifying_flow"
+            ? // The server's message is English; this step has a label of its own.
+              t("assistant.test.running")
+            : progress.message || t("assistant.working")}
+        </span>
       </div>
     );
   }

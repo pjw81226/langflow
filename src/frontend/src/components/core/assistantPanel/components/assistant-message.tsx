@@ -10,6 +10,7 @@ import { AssistantBuildTasks } from "./assistant-build-tasks";
 import { AssistantMessageBody } from "./assistant-message-body";
 import { AssistantModelNotice } from "./assistant-model-notice";
 import { AssistantRevertAction } from "./assistant-revert-action";
+import { AssistantTestResult } from "./assistant-test-result";
 import { FileContentModal } from "./file-content-modal";
 
 interface AssistantMessageItemProps {
@@ -48,6 +49,13 @@ interface AssistantMessageItemProps {
   isLatestRestorePoint?: boolean;
   /** Marks the message as reverted after a successful restore. */
   onReverted?: (messageId: string) => void;
+  /**
+   * Actions of the test result card. Only the latest result gets them: a
+   * "Test again" on an old card would read as testing that old state.
+   */
+  onTestFlow?: () => void;
+  onFixFlow?: (messageId: string) => void;
+  onOpenPlayground?: () => void;
 }
 
 // Steps where AssistantLoadingState replaces the simple thinking dots.
@@ -67,6 +75,7 @@ const RICH_LOADING_STEPS = [
   "building_flow",
   "flow_built",
   "flow_build_failed",
+  "verifying_flow",
 ];
 
 function ThinkingIndicator({ message }: { message: string }) {
@@ -103,6 +112,9 @@ export function AssistantMessageItem({
   onAcknowledgeValidation,
   isLatestRestorePoint = false,
   onReverted,
+  onTestFlow,
+  onFixFlow,
+  onOpenPlayground,
 }: AssistantMessageItemProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
@@ -245,6 +257,23 @@ export function AssistantMessageItem({
               onOpenFile={(path) => setOpenFilePath(path)}
             />
           </div>
+          {!isUser && message.status === "complete" && message.testResult && (
+            <AssistantTestResult
+              result={message.testResult}
+              onTestAgain={onTestFlow}
+              onFix={onFixFlow ? () => onFixFlow(message.id) : undefined}
+              onOpenPlayground={onOpenPlayground}
+              // A proposal that was never put on the canvas cannot be tested:
+              // the run would exercise the old canvas.
+              testBlockedReason={
+                message.pendingFlowProposal &&
+                message.flowProposalStatus !== "applied" &&
+                !message.flowProposalSnapshot
+                  ? t("assistant.test.applyFirst")
+                  : undefined
+              }
+            />
+          )}
           {!isUser &&
             message.status === "complete" &&
             message.restoreVersionId &&

@@ -160,6 +160,54 @@ describe("AssistantInput", () => {
     });
   });
 
+  describe("test flow button", () => {
+    it("should_not_render_without_a_handler", () => {
+      render(<AssistantInput {...defaultProps} />);
+
+      expect(screen.queryByTestId("assistant-test-flow-button")).toBeNull();
+    });
+
+    it("should_report_a_click_without_focusing_the_composer", () => {
+      // Like sending, testing needs a model the catalog still allows.
+      localStorage.setItem(
+        "langflow-assistant-selected-model",
+        JSON.stringify({
+          id: "OpenAI-gpt-4o",
+          name: "gpt-4o",
+          provider: "OpenAI",
+          displayName: "gpt-4o",
+        }),
+      );
+      const onTestFlow = jest.fn();
+      render(<AssistantInput {...defaultProps} onTestFlow={onTestFlow} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Test flow" }));
+
+      expect(onTestFlow).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "gpt-4o", provider: "OpenAI" }),
+      );
+      expect(screen.getByRole("textbox")).not.toHaveFocus();
+    });
+
+    it("should_be_disabled_without_a_usable_model", () => {
+      render(<AssistantInput {...defaultProps} onTestFlow={jest.fn()} />);
+
+      expect(screen.getByTestId("assistant-test-flow-button")).toBeDisabled();
+    });
+
+    it("should_be_disabled_while_a_turn_is_running", () => {
+      render(
+        <AssistantInput
+          {...defaultProps}
+          onTestFlow={jest.fn()}
+          isProcessing
+        />,
+      );
+
+      expect(screen.getByTestId("assistant-test-flow-button")).toBeDisabled();
+    });
+  });
+
   describe("placeholder behavior", () => {
     it("should show 'Generating response...' during 'generating' step (Q&A)", () => {
       render(

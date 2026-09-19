@@ -28,6 +28,10 @@ import {
   buildTaskFromEvent,
   inProgressTaskFromEvent,
 } from "../helpers/assistant-event-mappers";
+import {
+  stripVerificationCaveat,
+  testResultFromComplete,
+} from "../helpers/verification";
 import { commandAckMessages } from "./command-ack";
 import {
   parseHistoryCommand,
@@ -158,6 +162,9 @@ export function useAssistantChat(
         /** Panel mode for this turn. Internal sends (plan approval, edit
          * continuation) omit it and stay build turns. */
         mode?: AssistantMode;
+        /** "test_flow": the backend runs the canvas flow once instead of
+         * starting an agent turn; ``content`` is only the bubble's label. */
+        action?: "test_flow";
       },
     ) => {
       // ``internal`` bypasses the processing guard to avoid the unmount blink.
@@ -221,6 +228,7 @@ export function useAssistantChat(
 
       const turnMode: AssistantMode = options?.mode ?? "build";
       const isAskTurn = turnMode === "ask";
+      const turnAction = options?.action;
       // Ask turns are read-only. The backend sends no canvas events for them; if
       // one arrives anyway (older backend, bug), it must never reach the canvas.
       const ignoreInAskMode = (eventName: string): boolean => {
@@ -236,6 +244,7 @@ export function useAssistantChat(
         content: displayContent ?? content,
         ...(displayContent !== undefined ? { wireContent: content } : {}),
         mode: turnMode,
+        ...(turnAction ? { action: turnAction } : {}),
         timestamp: new Date(),
         status: "complete",
       };
@@ -246,6 +255,7 @@ export function useAssistantChat(
         role: "assistant",
         content: "",
         mode: turnMode,
+        ...(turnAction ? { action: turnAction } : {}),
         timestamp: new Date(),
         status: "streaming",
       };
@@ -279,8 +289,12 @@ export function useAssistantChat(
       // history, and a turn that never replans must not resend a stale plan.
       // Only a build turn consumes the stash: a question asked while refining
       // a plan must not swallow it.
-      const stashedPlan = isAskTurn ? null : dismissedPlanMarkdownRef.current;
-      if (!isAskTurn) dismissedPlanMarkdownRef.current = null;
+      // Nor a test turn: it sends no text of the user's at all.
+      const consumesPlan = !isAskTurn && !turnAction;
+      const stashedPlan = consumesPlan
+        ? dismissedPlanMarkdownRef.current
+        : null;
+      if (consumesPlan) dismissedPlanMarkdownRef.current = null;
       const inputValue = stashedPlan
         ? buildRefinementInput(stashedPlan, content)
         : content;
@@ -303,6 +317,7 @@ export function useAssistantChat(
             history_limit: historyLimitRef.current ?? undefined,
             iterations_limit: iterationsLimitRef.current ?? undefined,
             mode: turnMode,
+            ...(turnAction ? { action: turnAction } : {}),
           },
           {
             onProgress: (event) => {
@@ -505,16 +520,29 @@ export function useAssistantChat(
                 }, 0);
                 return;
               }
+              const testResult = testResultFromComplete(event.data);
+              // A test turn's text is an English summary for the conversation
+              // buffer; the card says the same in the UI language.
+              const answer =
+                turnAction === "test_flow"
+                  ? ""
+                  : testResult
+                    ? stripVerificationCaveat(
+                        event.data.result || "",
+                        event.data.verification_caveat,
+                      )
+                    : event.data.result || "";
               updateMessage(assistantMessageId, () => ({
                 status: "complete" as const,
                 inProgressTask: undefined,
-                content: event.data.result || "",
+                content: answer,
+                testResult,
                 // Pure edits stay false so approval doesn't spawn a second message.
                 // An ask turn changed nothing, so there is nothing to continue.
                 continuationExpected:
                   !isAskTurn && event.data.continuation_expected === true,
                 result: {
-                  content: event.data.result || "",
+                  content: answer,
                   validated: event.data.validated,
                   hasFlow: event.data.has_flow,
                   className: event.data.class_name,
@@ -635,10 +663,44 @@ export function useAssistantChat(
             ? { displayContent: userMessage.content }
             : {}),
           mode: userMessage.mode,
+          action: userMessage.action,
         },
       );
     },
     [messages, handleSend],
+  );
+
+  const handleTestFlow = useCallback(
+    async (model: AssistantModel | null) => {
+      const target = model ?? lastModelRef.current;
+      if (isProcessing || !target) return;
+      // The backend tests the flow it reads from the database.
+      await saveFlow();
+      await handleSend(t("assistant.test.action"), target, {
+        action: "test_flow",
+      });
+    },
+    [isProcessing, saveFlow, handleSend, t],
+  );
+
+  const handleFixFlow = useCallback(
+    async (messageId: string, model: AssistantModel | null) => {
+      const target = model ?? lastModelRef.current;
+      const failure = messages.find((m) => m.id === messageId)?.testResult
+        ?.error;
+      if (isProcessing || !target) return;
+      // Fixing changes the canvas, so it is always a build turn.
+      await handleSend(
+        t("assistant.test.fixPrompt", {
+          error: [failure?.component_name, failure?.message]
+            .filter(Boolean)
+            .join(": "),
+        }),
+        target,
+        { mode: "build" },
+      );
+    },
+    [isProcessing, messages, handleSend, t],
   );
 
   const handleUpdateFlowAction = useCallback(
@@ -885,6 +947,8 @@ export function useAssistantChat(
     isProcessing,
     currentStep,
     handleSend,
+    handleTestFlow,
+    handleFixFlow,
     handleApprove,
     handleUpdateFlowAction,
     handleApplyFlowProposal,

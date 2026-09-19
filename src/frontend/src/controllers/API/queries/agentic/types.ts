@@ -15,6 +15,7 @@ export type AgenticStepType =
   | "flow_built"
   | "flow_build_failed"
   | "flow_proposal_ready"
+  | "verifying_flow"
   | "generating_document"
   | "document_ready";
 
@@ -39,6 +40,12 @@ export interface AgenticCompleteData {
   validated: boolean;
   /** Echo of the request mode, when one was sent. */
   mode?: AssistantMode;
+  /** Prose-era verification outcome: absent when the flow was not test-run. */
+  verified?: boolean;
+  /** The sentence the backend also appends to `result` as "⚠️ …". */
+  verification_caveat?: string;
+  /** Structured outcome of the test run. Absent on servers that predate it. */
+  test_result?: AgenticTestResult;
   class_name?: string;
   component_code?: string;
   validation_attempts?: number;
@@ -202,6 +209,45 @@ export type AgenticSSEEvent =
   | AgenticErrorEvent
   | AgenticCancelledEvent;
 
+export type AgenticTestStatus =
+  | "passed"
+  | "failed"
+  | "needs_attention"
+  | "skipped";
+
+/**
+ * Why a test run failed. "external_resource" and "timeout" are not the agent's
+ * to fix: the flow is sound and needs something from the user.
+ */
+export type AgenticTestErrorKind =
+  | "fixable"
+  | "external_resource"
+  | "timeout"
+  | "unknown"
+  // Future kinds must not break an older client.
+  | (string & {});
+
+export interface AgenticTestResult {
+  status: AgenticTestStatus;
+  trigger?: "build" | "manual";
+  attempts?: number;
+  /** True when a fix turn repaired the flow before it passed. */
+  fixed?: boolean;
+  duration_seconds?: number;
+  /** Text the run put into an empty Chat Input. */
+  probe_input?: string;
+  output_preview?: string;
+  error?: {
+    kind?: AgenticTestErrorKind;
+    /** Server-side English; shown under "Details", never as the headline. */
+    message?: string;
+    recommendation?: string;
+    component_name?: string;
+    component_id?: string;
+  };
+  skipped_reason?: string;
+}
+
 /**
  * Panel mode the user picked for a turn. "build" lets the assistant change the
  * canvas (today's behaviour); "ask" is a read-only help turn.
@@ -221,6 +267,8 @@ export interface AgenticAssistRequest {
   iterations_limit?: number;
   /** Absent means "build". A backend without mode support ignores the field. */
   mode?: AssistantMode;
+  /** "test_flow" runs the canvas flow once instead of starting an agent turn. */
+  action?: "test_flow";
 }
 
 export interface AgenticProgressState {

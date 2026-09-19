@@ -95,6 +95,8 @@ interface AssistantInputProps {
   mode?: AssistantMode;
   /** When provided, the composer shows the Build | Ask switch. */
   onModeChange?: (mode: AssistantMode) => void;
+  /** When provided, the composer shows the "Test flow" button. */
+  onTestFlow?: (model: AssistantModel | null) => void;
 }
 
 export function AssistantInput({
@@ -112,6 +114,7 @@ export function AssistantInput({
   onMentionOpenChange,
   mode = "build",
   onModeChange,
+  onTestFlow,
 }: AssistantInputProps) {
   const { t } = useTranslation();
   // Server-owned cap (LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH), mirrored through /config so the
@@ -275,13 +278,39 @@ export function AssistantInput({
             onSelect={mentions.confirm}
           />
         )}
-        {onModeChange && (
+        {(onModeChange || onTestFlow) && (
           <div className="flex items-center justify-between px-3 pt-2.5">
-            <AssistantModeSwitch
-              mode={mode}
-              onChange={onModeChange}
-              disabled={disabled && !isProcessing}
-            />
+            {onModeChange ? (
+              <AssistantModeSwitch
+                mode={mode}
+                onChange={onModeChange}
+                disabled={disabled && !isProcessing}
+              />
+            ) : (
+              <span />
+            )}
+            {onTestFlow && (
+              <button
+                type="button"
+                data-testid="assistant-test-flow-button"
+                title={t("assistant.test.actionTooltip")}
+                disabled={
+                  disabled ||
+                  isProcessing ||
+                  !isCatalogReady ||
+                  !isModelEnabled(selectedModel)
+                }
+                onClick={(e) => {
+                  // The composer focuses the textarea on any click inside it.
+                  e.stopPropagation();
+                  onTestFlow(selectedModel);
+                }}
+                className="flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              >
+                <ForwardedIconComponent name="Play" className="h-3 w-3" />
+                {t("assistant.test.action")}
+              </button>
+            )}
           </div>
         )}
         <div className="relative">

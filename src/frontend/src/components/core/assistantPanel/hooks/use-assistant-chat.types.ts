@@ -17,7 +17,15 @@ export interface UseAssistantChatReturn {
       silent?: boolean;
       displayContent?: string;
       mode?: AssistantMode;
+      action?: "test_flow";
     },
+  ) => Promise<void>;
+  /** Saves the flow, then has the backend run it once and report the result. */
+  handleTestFlow: (model: AssistantModel | null) => Promise<void>;
+  /** Sends a build turn asking the assistant to fix the failure on that message. */
+  handleFixFlow: (
+    messageId: string,
+    model: AssistantModel | null,
   ) => Promise<void>;
   handleApprove: (messageId: string, componentCode?: string) => Promise<void>;
   handleUpdateFlowAction: (

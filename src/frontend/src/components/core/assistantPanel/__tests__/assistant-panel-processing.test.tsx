@@ -185,6 +185,19 @@ describe("AssistantPanel canvas lock", () => {
     expect(mockSetAssistantProcessing).not.toHaveBeenCalledWith(true);
   });
 
+  it("should_leave_the_canvas_editable_while_a_flow_test_runs", () => {
+    // A test only runs the flow; nothing on the canvas can change.
+    mockIsProcessing = true;
+    mockMessages = streamingReply("build").map((message) => ({
+      ...message,
+      action: "test_flow" as const,
+    }));
+
+    render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
+  });
+
   it("should_treat_a_turn_without_a_mode_as_a_build_turn", () => {
     // Sessions saved before modes existed.
     mockIsProcessing = true;
