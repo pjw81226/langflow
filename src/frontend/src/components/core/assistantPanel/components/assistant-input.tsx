@@ -17,6 +17,10 @@ import { useEnabledModels } from "../hooks/use-enabled-models";
 import { useInputHistory } from "../hooks/use-input-history";
 import { AssistantMentionPopover } from "./assistant-mention-popover";
 import { AssistantModeSwitch } from "./assistant-mode-switch";
+import {
+  AssistantPromptTargetPicker,
+  type PromptTargetChoice,
+} from "./assistant-prompt-target-picker";
 import { ModelSelector } from "./model-selector";
 
 // During these steps the message area shows the thinking animation, so the
@@ -83,6 +87,8 @@ interface AssistantInputProps {
   onModeChange?: (mode: AssistantMode) => void;
   /** When provided, the composer shows the "Test flow" button. */
   onTestFlow?: (model: AssistantModel | null) => void;
+  /** The "Apply to:" choice, shown in prompt mode. */
+  promptTargetPicker?: PromptTargetChoice;
   /**
    * Text to put into the composer from outside (a starter prompt). The nonce
    * makes picking the same example twice count as two requests.
@@ -105,6 +111,7 @@ export function AssistantInput({
   mode = DEFAULT_ASSISTANT_MODE,
   onModeChange,
   onTestFlow,
+  promptTargetPicker,
   prefill,
 }: AssistantInputProps) {
   const { t } = useTranslation();
@@ -317,6 +324,14 @@ export function AssistantInput({
                 {t("assistant.test.action")}
               </button>
             )}
+          </div>
+        )}
+        {mode === "prompt" && promptTargetPicker && (
+          <div className="px-3">
+            <AssistantPromptTargetPicker
+              {...promptTargetPicker}
+              disabled={disabled && !isProcessing}
+            />
           </div>
         )}
         <div className="relative">

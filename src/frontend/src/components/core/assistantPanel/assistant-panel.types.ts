@@ -24,6 +24,8 @@ export interface AssistantMessage {
   mode?: AssistantMode;
   /** Set on both messages of a "Test flow" turn: no agent ran. */
   action?: "test_flow";
+  /** Prompt turns: the component and field the prompt was written for. */
+  promptTarget?: PromptTargetRef;
   /** Outcome of the flow's test run, rendered as a result card. */
   testResult?: AgenticTestResult;
   timestamp: Date;
@@ -58,6 +60,14 @@ export interface AssistantMessage {
   /** Non-fatal model errors this turn recovered from (silent fallback/retry).
    * Rendered as an (i) next to the message metadata. */
   notices?: AssistantModelNotice[];
+}
+
+/** The field a Prompt turn writes for, as the user picked it. */
+export interface PromptTargetRef {
+  componentId: string;
+  fieldName: string;
+  /** The component's name in the picker when the turn was sent. */
+  label: string;
 }
 
 export interface AssistantModel {

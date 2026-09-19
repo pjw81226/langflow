@@ -3,6 +3,7 @@ import type {
   AssistantMessage,
   AssistantMode,
   AssistantModel,
+  PromptTargetRef,
 } from "../assistant-panel.types";
 
 export interface AssistantSendOptions {
@@ -11,6 +12,9 @@ export interface AssistantSendOptions {
   /** "test_flow": the backend runs the canvas flow once instead of starting
    * an agent turn; the content is only the bubble's label. */
   action?: "test_flow";
+  /** Prompt turns: the field the prompt is for. Its current text is read
+   * when the turn is sent. */
+  promptTarget?: PromptTargetRef;
 }
 
 export interface UseAssistantChatReturn {

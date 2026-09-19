@@ -64,7 +64,7 @@ describe("AssistantModeSwitch", () => {
     // The composer focuses its textarea on any click inside it.
     const onComposerClick = jest.fn();
     render(
-      // biome-ignore lint/a11y/useKeyWithClickEvents: test-only wrapper
+      // biome-ignore lint/a11y/noStaticElementInteractions: test-only wrapper
       <div onClick={onComposerClick}>
         <AssistantModeSwitch mode="component" onChange={jest.fn()} />
       </div>,

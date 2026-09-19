@@ -17,12 +17,14 @@ import { AssistantHeader } from "./components/assistant-header";
 import { AssistantInput } from "./components/assistant-input";
 import { AssistantMessageItem } from "./components/assistant-message";
 import { AssistantNoModelsState } from "./components/assistant-no-models-state";
+import type { PromptTargetChoice } from "./components/assistant-prompt-target-picker";
 import { AssistantStarterPrompts } from "./components/assistant-starter-prompts";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
 // Direct paths: tests mock the ./hooks barrel wholesale.
 import { purgeLegacyAssistantStorage } from "./hooks/legacy-storage";
 import { useAssistantDock } from "./hooks/use-assistant-dock";
 import { useAssistantMode } from "./hooks/use-assistant-mode";
+import { usePromptTarget } from "./hooks/use-prompt-target";
 
 // Module-level draft cache — survives panel unmount/remount
 let draftMessageCache = "";
@@ -58,6 +60,7 @@ interface AssistantInputWithScrollProps {
   mode: AssistantMode;
   onModeChange: (mode: AssistantMode) => void;
   onTestFlow: (model: AssistantModel | null) => void;
+  promptTargetPicker?: PromptTargetChoice;
 }
 
 function AssistantInputWithScroll({
@@ -72,6 +75,7 @@ function AssistantInputWithScroll({
   mode,
   onModeChange,
   onTestFlow,
+  promptTargetPicker,
 }: AssistantInputWithScrollProps) {
   const { scrollToBottom } = useStickToBottomContext();
 
@@ -93,6 +97,7 @@ function AssistantInputWithScroll({
       mode={mode}
       onModeChange={onModeChange}
       onTestFlow={onTestFlow}
+      promptTargetPicker={promptTargetPicker}
       compact
     />
   );
@@ -108,6 +113,15 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const currentFlowId = useFlowStore((state) => state.currentFlow?.id);
   const isReadOnly = useIsFlowReadOnly(currentFlowId);
   const [mode, setMode] = useAssistantMode();
+  const promptTarget = usePromptTarget(mode === "prompt");
+  const promptTargetChoice = useMemo<PromptTargetChoice>(
+    () => ({
+      targets: promptTarget.targets,
+      selected: promptTarget.selected,
+      onSelect: promptTarget.select,
+    }),
+    [promptTarget.targets, promptTarget.selected, promptTarget.select],
+  );
   const { isDocked, canDock, toggleDock, dockWidth, handleDockResize } =
     useAssistantDock();
   // The expanded sidebar offsets the canvas 280px, so the panel shifts right
@@ -179,12 +193,24 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     return () =>
       document.removeEventListener("pointerdown", handleClickOutside, true);
   }, [isOpen, isDocked, isProcessing, onClose]);
+  const selectedPromptTarget = promptTarget.selected;
   const handleAuthorizedSend = useCallback(
     (content: string, model: AssistantModel | null) => {
       if (!canSendWithModel(model)) return;
-      void handleSend(content, model, { mode });
+      void handleSend(content, model, {
+        mode,
+        ...(mode === "prompt" && selectedPromptTarget
+          ? {
+              promptTarget: {
+                componentId: selectedPromptTarget.componentId,
+                fieldName: selectedPromptTarget.fieldName,
+                label: selectedPromptTarget.label,
+              },
+            }
+          : {}),
+      });
     },
-    [canSendWithModel, handleSend, mode],
+    [canSendWithModel, handleSend, mode, selectedPromptTarget],
   );
   const handleAuthorizedTest = useCallback(
     (model: AssistantModel | null) => {
@@ -470,6 +496,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               mode={mode}
               onModeChange={setMode}
               onTestFlow={handleAuthorizedTest}
+              promptTargetPicker={promptTargetChoice}
             />
           </StickToBottom>
         ) : (
@@ -508,6 +535,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               mode={mode}
               onModeChange={setMode}
               onTestFlow={handleAuthorizedTest}
+              promptTargetPicker={promptTargetChoice}
             />
           </>
         )}

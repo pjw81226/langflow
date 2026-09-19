@@ -167,6 +167,11 @@ export interface AgenticAssistRequest {
   /** {English label: label in the UI language}, sent with ask turns on a
    * translated UI so the agent can match labels to the English docs. */
   ui_glossary?: Record<string, string>;
+  /** Prompt turns: the component and field the prompt is written for, and
+   * the field's current text ("" when empty). All three or none. */
+  component_id?: string;
+  field_name?: string;
+  field_value?: string;
 }
 
 export interface AgenticProgressState {

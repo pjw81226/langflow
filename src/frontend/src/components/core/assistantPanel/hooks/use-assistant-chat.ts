@@ -9,6 +9,7 @@ import { usePostValidateComponentCode } from "@/controllers/API/queries/nodes/us
 import { BASE_URL_API } from "@/customization/config-constants";
 import useSaveFlow from "@/hooks/flows/use-save-flow";
 import { useAddComponent } from "@/hooks/use-add-component";
+import useFlowStore from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import type { APIClassType } from "@/types/api";
 import type {
@@ -16,6 +17,7 @@ import type {
   AssistantMode,
   AssistantModel,
 } from "../assistant-panel.types";
+import { readPromptFieldValue } from "../helpers/prompt-targets";
 import { buildUiGlossary } from "../helpers/ui-glossary";
 import { testResultFromComplete } from "../helpers/verification";
 import type {
@@ -105,6 +107,13 @@ export function useAssistantChat(
       const turnMode: AssistantMode | undefined = turnAction
         ? undefined
         : (options?.mode ?? "ask");
+      // A prompt turn carries the field it writes for and that field's text as
+      // it is now. A component or field that left the canvas is not sent.
+      const target = turnMode === "prompt" ? options?.promptTarget : undefined;
+      const fieldValue = target
+        ? readPromptFieldValue(useFlowStore.getState().nodes ?? [], target)
+        : undefined;
+      const sentTarget = fieldValue === undefined ? undefined : target;
       // Both messages of the turn remember how it was sent.
       const turnTags: Pick<AssistantMessage, "mode" | "action"> = {
         ...(turnMode ? { mode: turnMode } : {}),
@@ -116,6 +125,7 @@ export function useAssistantChat(
         role: "user",
         content,
         ...turnTags,
+        ...(sentTarget ? { promptTarget: sentTarget } : {}),
         timestamp: new Date(),
         status: "complete",
       };
@@ -126,6 +136,7 @@ export function useAssistantChat(
         role: "assistant",
         content: "",
         ...turnTags,
+        ...(sentTarget ? { promptTarget: sentTarget } : {}),
         timestamp: new Date(),
         status: "streaming",
       };
@@ -135,7 +146,27 @@ export function useAssistantChat(
 
       // Abort in-flight streams: a leaked SSE reader would mutate the same message.
       abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      if (sentTarget) {
+        // The backend reads the rest of the flow from the database.
+        try {
+          await saveFlow();
+        } catch {
+          // useSaveFlow has already told the user why.
+          if (!controller.signal.aborted) {
+            updateMessage(assistantMessageId, () => ({
+              status: "error" as const,
+              error: t("errors.failedToSaveFlow"),
+            }));
+            setIsProcessing(false);
+          }
+          return;
+        }
+        // Stopped, or replaced by a new session, while the flow was saving.
+        if (controller.signal.aborted) return;
+      }
 
       try {
         await postAssistStream(
@@ -146,6 +177,13 @@ export function useAssistantChat(
             model_name: model.name,
             session_id: sessionIdRef.current,
             ...turnTags,
+            ...(sentTarget
+              ? {
+                  component_id: sentTarget.componentId,
+                  field_name: sentTarget.fieldName,
+                  field_value: fieldValue,
+                }
+              : {}),
             ...(turnMode === "ask" ? { ui_glossary: buildUiGlossary() } : {}),
           },
           {
@@ -220,7 +258,7 @@ export function useAssistantChat(
               setIsProcessing(false);
             },
           },
-          abortControllerRef.current.signal,
+          controller.signal,
         );
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
@@ -233,7 +271,7 @@ export function useAssistantChat(
         setIsProcessing(false);
       }
     },
-    [isProcessing, currentFlowId, updateMessage, t],
+    [isProcessing, currentFlowId, updateMessage, saveFlow, t],
   );
 
   const handleApprove = useCallback(
@@ -292,6 +330,7 @@ export function useAssistantChat(
       void handleSend(userMessage.content, lastModel, {
         mode: userMessage.mode,
         action: userMessage.action,
+        promptTarget: userMessage.promptTarget,
       });
     },
     [messages, handleSend],

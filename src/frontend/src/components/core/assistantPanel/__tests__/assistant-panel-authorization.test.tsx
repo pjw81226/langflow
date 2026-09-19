@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AssistantPanel } from "../assistant-panel";
 import type { AssistantModel } from "../assistant-panel.types";
+import type { PromptTarget } from "../helpers/prompt-targets";
 
 const SAVED_MODEL: AssistantModel = {
   id: "OpenAI-gpt-4o",
@@ -15,6 +16,7 @@ let mockCatalogReady = true;
 let mockHasEnabledModels = true;
 let mockModelAllowed = true;
 let mockAllowCustomComponents = true;
+let mockPromptTargets: PromptTarget[] = [];
 
 const mockIsModelEnabled = (model: AssistantModel | null) =>
   mockModelAllowed &&
@@ -56,6 +58,14 @@ jest.mock("@/stores/utilityStore", () => ({
       allowCustomComponents: mockAllowCustomComponents,
       customComponentAdminOnly: false,
     }),
+}));
+
+jest.mock("../hooks/use-prompt-target", () => ({
+  usePromptTarget: (enabled: boolean) => ({
+    targets: enabled ? mockPromptTargets : [],
+    selected: enabled ? (mockPromptTargets[0] ?? null) : null,
+    select: () => {},
+  }),
 }));
 
 jest.mock("use-stick-to-bottom", () => {
@@ -148,6 +158,7 @@ describe("AssistantPanel scoped model authorization", () => {
     mockHasEnabledModels = true;
     mockModelAllowed = true;
     mockAllowCustomComponents = true;
+    mockPromptTargets = [];
   });
 
   it("guards direct panel sends with current catalog membership", async () => {
@@ -198,6 +209,50 @@ describe("AssistantPanel scoped model authorization", () => {
         "direct message",
         SAVED_MODEL,
         { mode: "component" },
+      );
+    });
+
+    it("sends a prompt turn with the component it applies to", async () => {
+      localStorage.setItem("langflow-assistant-mode", "prompt");
+      mockPromptTargets = [
+        {
+          componentId: "Agent-1",
+          fieldName: "system_prompt",
+          label: "Agent",
+          fieldLabel: "Agent Instructions",
+          selectedOnCanvas: false,
+        },
+      ];
+      const user = userEvent.setup();
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+      await user.click(screen.getByTestId("mock-assistant-send"));
+
+      expect(mockHandleSend).toHaveBeenCalledWith(
+        "direct message",
+        SAVED_MODEL,
+        {
+          mode: "prompt",
+          promptTarget: {
+            componentId: "Agent-1",
+            fieldName: "system_prompt",
+            label: "Agent",
+          },
+        },
+      );
+    });
+
+    it("sends a prompt turn without a target when nothing can take it", async () => {
+      localStorage.setItem("langflow-assistant-mode", "prompt");
+      const user = userEvent.setup();
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+      await user.click(screen.getByTestId("mock-assistant-send"));
+
+      expect(mockHandleSend).toHaveBeenCalledWith(
+        "direct message",
+        SAVED_MODEL,
+        { mode: "prompt" },
       );
     });
 

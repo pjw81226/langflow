@@ -130,6 +130,41 @@ describe("AssistantInput", () => {
       expect(onModeChange).toHaveBeenCalledWith("ask");
     });
 
+    it("should_show_the_target_picker_in_prompt_mode_only", () => {
+      const agent = {
+        componentId: "Agent-1",
+        fieldName: "system_prompt",
+        label: "Agent",
+        fieldLabel: "Agent Instructions",
+        selectedOnCanvas: false,
+      };
+      const choice = { targets: [agent], selected: agent, onSelect: jest.fn() };
+      const { rerender } = render(
+        <AssistantInput
+          {...defaultProps}
+          mode="prompt"
+          onModeChange={jest.fn()}
+          promptTargetPicker={choice}
+        />,
+      );
+
+      expect(screen.getByTestId("assistant-prompt-target")).toHaveTextContent(
+        "Apply to:Agent",
+      );
+
+      for (const mode of ["component", "ask"] as const) {
+        rerender(
+          <AssistantInput
+            {...defaultProps}
+            mode={mode}
+            onModeChange={jest.fn()}
+            promptTargetPicker={choice}
+          />,
+        );
+        expect(screen.queryByTestId("assistant-prompt-target")).toBeNull();
+      }
+    });
+
     it("should_use_an_instruction_placeholder_in_prompt_mode", () => {
       render(
         <AssistantInput
