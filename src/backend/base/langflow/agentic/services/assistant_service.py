@@ -897,7 +897,15 @@ async def execute_flow_with_validation_streaming(
     # a PURE edit must NOT (it spawned a duplicate-message glitch). Computed
     # deterministically from the original input; never for the protocol
     # signals themselves (avoids a continuation loop).
-    continuation_expected = _looks_like_run_request(original_user_input) and original_user_input.strip() not in (
+    # The run detector is an English/Portuguese regex, so also test the English
+    # translation the classifier produced: a Korean "change the input and run it"
+    # otherwise never counts as a run request, the edit becomes a review card and
+    # the run is dropped after approval. OR keeps every case detected today.
+    _translated_input = intent_result.translation if isinstance(intent_result.translation, str) else ""
+    run_requested = _looks_like_run_request(original_user_input) or (
+        bool(_translated_input.strip()) and _looks_like_run_request(_translated_input)
+    )
+    continuation_expected = run_requested and original_user_input.strip() not in (
         PLAN_APPROVAL_INPUT,
         EDIT_CONTINUATION_INPUT,
     )

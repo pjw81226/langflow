@@ -37,8 +37,10 @@ class _AssistantPolicy:
         return [provider for provider in providers if self.allows(provider)]
 
 
-def _intent(intent: str) -> IntentResult:
-    return IntentResult(intent=intent, translation="run the flow")
+def _intent(intent: str, translation: str = "") -> IntentResult:
+    # The translation feeds the run detector, so it must mirror the input under
+    # test instead of claiming every request asks for a run.
+    return IntentResult(intent=intent, translation=translation)
 
 
 def _gen(events):
@@ -177,6 +179,63 @@ async def test_complete_flags_continuation_expected_for_edit_plus_run():
 
     complete = next(e for e in events if '"event": "complete"' in e)
     assert '"continuation_expected": true' in complete, complete
+
+
+@pytest.mark.asyncio
+async def test_complete_flags_continuation_for_edit_plus_run_in_a_language_the_regex_does_not_cover():
+    """The run detector only knows English and Portuguese verbs.
+
+    A Korean "change the input to Cat and run the flow" has to be recognised
+    through the classifier's English translation, otherwise the edit is parked
+    behind a review card and the requested run never happens after approval.
+    """
+    intent = _intent("build_flow", translation="change the input to Cat and run the flow")
+    with (
+        patch(f"{MODULE}.classify_intent", new_callable=AsyncMock, return_value=intent),
+        patch(
+            f"{MODULE}.execute_flow_file_streaming",
+            return_value=_gen([("end", {"result": "Proposed the edit."})]),
+        ),
+        patch(f"{MODULE}.drain_flow_events", return_value=[{"action": "edit_field"}]),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        events = await _collect(
+            execute_flow_with_validation_streaming(
+                flow_filename="TestFlow",
+                input_value="입력을 Cat으로 바꾸고 Flow를 실행해 줘",
+                global_variables={},
+                max_retries=1,
+            )
+        )
+
+    complete = next(e for e in events if '"event": "complete"' in e)
+    assert '"continuation_expected": true' in complete, complete
+
+
+@pytest.mark.asyncio
+async def test_complete_does_not_flag_continuation_for_a_translated_pure_edit():
+    """The translation path must not turn a pure edit into an edit-plus-run."""
+    intent = _intent("build_flow", translation="improve the agent instructions")
+    with (
+        patch(f"{MODULE}.classify_intent", new_callable=AsyncMock, return_value=intent),
+        patch(
+            f"{MODULE}.execute_flow_file_streaming",
+            return_value=_gen([("end", {"result": "Proposed the edit."})]),
+        ),
+        patch(f"{MODULE}.drain_flow_events", return_value=[{"action": "edit_field"}]),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        events = await _collect(
+            execute_flow_with_validation_streaming(
+                flow_filename="TestFlow",
+                input_value="Agent 지침을 더 좋게 다듬어 줘",
+                global_variables={},
+                max_retries=1,
+            )
+        )
+
+    complete = next(e for e in events if '"event": "complete"' in e)
+    assert '"continuation_expected": false' in complete, complete
 
 
 @pytest.mark.asyncio
