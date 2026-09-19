@@ -31,6 +31,61 @@ To give **Langflow Assistant** context for a different flow, switch to that flow
 
   For more information, see [Restrict custom component creation to superusers](/deployment-block-custom-components).
 
+## Choose a mode: Build or Ask {#build-and-ask-modes}
+
+The switch above the prompt input sets what **Langflow Assistant** is allowed to do with your message.
+
+* **Build**: **Langflow Assistant** can change the canvas. It builds and edits flows, writes prompts, and creates components. While a **Build** request runs, the canvas is locked.
+* **Ask**: **Langflow Assistant** only answers. It can't add, connect, configure, build, or run anything, so the canvas stays editable while it answers. If you ask it to build something, it tells you to switch to **Build** and send the request there.
+
+In **Ask** mode, **Langflow Assistant** answers from a copy of this documentation that ships with Langflow, so the answers match your Langflow version and don't need internet access.
+It also reads the flow that is open on the canvas, so you can ask what a component does or why a flow doesn't work.
+Answers name components the way the canvas shows them and end with links to the pages they came from.
+
+**Langflow Assistant** replies in the language you write in, and keeps component and field names in English so you can find them on the canvas.
+
+The panel remembers the last mode you used.
+
+To run **Ask** mode on a cheaper model than **Build** mode, set `LANGFLOW_ASSISTANT_ASK_MODEL`.
+For more information, see [Supported environment variables](/environment-variables#supported-variables).
+
+## Keep the panel open while you work {#dock-the-panel}
+
+By default, the **Langflow Assistant** panel floats over the canvas and closes when you click outside it.
+
+To keep it open, click <Icon name="PanelRight" aria-hidden="true"/> **Dock to the side** in the panel header.
+The docked panel sits to the right of the canvas, and the canvas shrinks to make room for it.
+A docked panel stays open when you click the canvas or press <kbd>Esc</kbd>. To close it, click <Icon name="X" aria-hidden="true"/> **Close assistant**.
+Drag the left edge of the docked panel to change its width.
+
+Docking is available on screens at least 1024 pixels wide.
+
+## Test a flow {#test-a-flow}
+
+When **Langflow Assistant** builds a flow, it runs the flow once before presenting it, and shows the outcome under its reply:
+
+* **Test passed**: The flow ran without errors. If **Langflow Assistant** had to repair the flow first, the result says so.
+* **Test failed**: The flow stopped with an error. The result names the component that failed. Click **Fix it** to have **Langflow Assistant** repair the flow.
+* **Needs your input to run**: The flow is set up correctly, but it needs something only you can provide, such as an API key, a file, or a database connection.
+* **Not tested yet**: The flow changed but wasn't run. **Langflow Assistant** doesn't run a flow on its own after editing it, because an existing flow might send email or write to a database.
+
+To test the flow on the canvas at any time, click <Icon name="Play" aria-hidden="true"/> **Test flow** above the prompt input.
+**Langflow Assistant** saves the flow, runs it once, and reports the result. If the flow's **Chat Input** is empty, the test sends `Hello`.
+A test doesn't use the Assistant's language model, and its messages don't appear in the **Playground**.
+
+To see the error message, the test input, and the output, expand **Details**.
+To chat with the flow yourself, click **Open Playground**. The **Playground** opens beside the canvas.
+
+## Apply changes without review {#apply-changes-automatically}
+
+By default, **Langflow Assistant** asks before it acts: it proposes a plan, and then offers a built flow with **Add to canvas** and **Replace canvas**.
+
+To skip those steps, click <Icon name="Ellipsis" aria-hidden="true"/> **More options** in the panel header, and then select **Apply changes automatically**.
+**Langflow Assistant** then puts the flows it builds on the canvas right away. The reply keeps a **Revert** action that restores the canvas to how it was before, including when the canvas was empty.
+Components that **Langflow Assistant** generates still need your approval.
+
+To make this the default for a deployment, set `LANGFLOW_ASSISTANT_AUTO_APPLY_DEFAULT=true`.
+
 ## Create a custom component with Langflow Assistant
 
 In this example, you'll prompt **Langflow Assistant** to create a custom component that validates and normalizes a list of URLs.
