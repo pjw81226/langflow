@@ -3,5 +3,4 @@ export type {
   AssistantMessage,
   AssistantModel,
   AssistantPanelProps,
-  AssistantSuggestion,
 } from "./assistant-panel.types";

@@ -2,7 +2,6 @@ import i18n from "@/i18n";
 import en from "@/locales/en.json";
 import {
   ASSISTANT_PLACEHOLDER_KEYS,
-  ASSISTANT_SESSION_STORAGE_KEY_PREFIX,
   ASSISTANT_TITLE,
   getAssistantPlaceholder,
   getAssistantPlaceholderKey,
@@ -16,17 +15,6 @@ describe("assistant-panel.constants", () => {
   describe("ASSISTANT_TITLE", () => {
     it("should be Langflow Assistant", () => {
       expect(ASSISTANT_TITLE).toBe("Langflow Assistant");
-    });
-  });
-
-  describe("ASSISTANT_SESSION_STORAGE_KEY_PREFIX", () => {
-    it("should be a non-empty string", () => {
-      expect(ASSISTANT_SESSION_STORAGE_KEY_PREFIX).toBeTruthy();
-      expect(typeof ASSISTANT_SESSION_STORAGE_KEY_PREFIX).toBe("string");
-    });
-
-    it("should end with a separator for flow ID concatenation", () => {
-      expect(ASSISTANT_SESSION_STORAGE_KEY_PREFIX).toMatch(/-$/);
     });
   });
 

@@ -226,12 +226,6 @@ export interface AssistantModel {
   displayName: string;
 }
 
-export interface AssistantSuggestion {
-  id: string;
-  icon: string;
-  text: string;
-}
-
 export interface AssistantPanelProps {
   isOpen: boolean;
   onClose: () => void;
