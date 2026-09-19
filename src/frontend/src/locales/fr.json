@@ -328,6 +328,7 @@
   "assistant.test.fixIt": "Fix it",
   "assistant.test.fixPrompt": "The flow test failed. Fix the flow so it runs.\n\nError: {{error}}",
   "assistant.test.applyFirst": "Add the flow to the canvas before testing.",
+  "assistant.test.applyEditsFirst": "Apply or dismiss the proposed changes before testing.",
   "assistant.starter.listLabel": "Example prompts",
   "assistant.starter.build.title": "What do you want to build?",
   "assistant.starter.build.0": "Build a chatbot that answers questions from my PDF",

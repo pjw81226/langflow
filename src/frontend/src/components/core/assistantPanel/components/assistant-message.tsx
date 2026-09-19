@@ -268,12 +268,18 @@ export function AssistantMessageItem({
               onOpenPlayground={onOpenPlayground}
               // A proposal that was never put on the canvas cannot be tested:
               // the run would exercise the old canvas.
+              // A change that is only proposed is not on the canvas yet: a test
+              // now would exercise the old flow and report on the wrong thing.
               testBlockedReason={
                 message.pendingFlowProposal &&
                 message.flowProposalStatus !== "applied" &&
                 !message.flowProposalSnapshot
                   ? t("assistant.test.applyFirst")
-                  : undefined
+                  : message.flowActions?.some(
+                        (action) => action.status === "pending",
+                      )
+                    ? t("assistant.test.applyEditsFirst")
+                    : undefined
               }
             />
           )}

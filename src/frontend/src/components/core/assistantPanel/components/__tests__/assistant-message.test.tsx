@@ -894,4 +894,68 @@ describe("AssistantMessageItem", () => {
       expect(screen.queryByTestId("chat-message-token-usage")).toBeNull();
     });
   });
+
+  describe("test result card", () => {
+    const base: AssistantMessage = {
+      id: "reply-1",
+      role: "assistant",
+      content: "Proposed a new system prompt.",
+      timestamp: new Date(),
+      status: "complete",
+      testResult: { status: "skipped", skipped_reason: "edit_not_verified" },
+    };
+
+    it("should_block_testing_while_a_field_edit_is_still_only_proposed", () => {
+      render(
+        <AssistantMessageItem
+          message={{
+            ...base,
+            flowActions: [
+              {
+                id: "edit-1",
+                type: "edit_field",
+                component_id: "Agent-1",
+                field: "system_prompt",
+                old_value: "a",
+                new_value: "b",
+                status: "pending",
+              } as never,
+            ],
+          }}
+          onTestFlow={jest.fn()}
+        />,
+      );
+
+      const button = screen.getByTestId("assistant-test-again-button");
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute(
+        "title",
+        "Apply or dismiss the proposed changes before testing.",
+      );
+    });
+
+    it("should_allow_testing_once_the_edit_is_resolved", () => {
+      render(
+        <AssistantMessageItem
+          message={{
+            ...base,
+            flowActions: [
+              {
+                id: "edit-1",
+                type: "edit_field",
+                component_id: "Agent-1",
+                field: "system_prompt",
+                old_value: "a",
+                new_value: "b",
+                status: "applied",
+              } as never,
+            ],
+          }}
+          onTestFlow={jest.fn()}
+        />,
+      );
+
+      expect(screen.getByTestId("assistant-test-again-button")).toBeEnabled();
+    });
+  });
 });

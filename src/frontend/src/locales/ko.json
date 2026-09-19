@@ -2279,6 +2279,7 @@
   "assistant.test.fixIt": "고치기",
   "assistant.test.fixPrompt": "Flow 테스트가 실패했습니다. 실행되도록 Flow를 고쳐 주세요.\n\n오류: {{error}}",
   "assistant.test.applyFirst": "테스트하려면 먼저 Flow를 캔버스에 추가하세요.",
+  "assistant.test.applyEditsFirst": "테스트하려면 먼저 변경 제안을 적용하거나 거절하세요.",
   "assistant.starter.listLabel": "예시",
   "assistant.starter.build.title": "무엇을 만들까요?",
   "assistant.starter.build.0": "내 PDF 내용으로 답하는 챗봇을 만들어 주세요",
