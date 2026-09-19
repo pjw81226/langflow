@@ -272,6 +272,7 @@ EXPECTED_FIELDS = {
     "assistant_max_message_length",
     # VariablesSettings: deployment defaults for the Assistant panel
     "assistant_default_model",
+    "assistant_ask_model",
     "assistant_auto_apply_default",
     "assistant_dock_default",
     # ---- Serving-plane end-user identity ----

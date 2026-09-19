@@ -63,6 +63,23 @@ class _AssistantContext:
     max_retries: int
 
 
+def _configured_ask_model() -> tuple[str | None, str | None]:
+    """``(provider, model)`` from ``LANGFLOW_ASSISTANT_ASK_MODEL``, or ``(None, None)``.
+
+    The value is ``Provider:model``. Only the first colon separates the two, because
+    model names carry colons of their own (``llama3.1:8b``).
+    """
+    from lfx.services.deps import get_settings_service
+
+    configured = (getattr(get_settings_service().settings, "assistant_ask_model", "") or "").strip()
+    provider, separator, model = configured.partition(":")
+    if not separator or not provider.strip() or not model.strip():
+        if configured:
+            logger.warning("assistant.ask_model.malformed value=%r; expected Provider:model", configured)
+        return None, None
+    return provider.strip(), model.strip()
+
+
 async def _resolve_assistant_context(
     request: AssistantRequest,
     user_id: UUID,
@@ -86,6 +103,16 @@ async def _resolve_assistant_context(
         )
 
     provider = request.provider
+    requested_model = request.model_name
+    if request.mode == "ask":
+        ask_provider, ask_model = _configured_ask_model()
+        if ask_provider and ask_provider in enabled_providers:
+            provider, requested_model = ask_provider, ask_model
+        elif ask_provider:
+            # Never a 400: the question still gets answered, with the panel's model.
+            logger.warning(
+                "assistant.ask_model.provider_not_enabled provider=%s; using the requested model", ask_provider
+            )
     if not provider:
         for preferred in PREFERRED_PROVIDERS:
             if preferred in enabled_providers:
@@ -108,7 +135,7 @@ async def _resolve_assistant_context(
     if not api_key_name and not is_known_model_provider(provider):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
-    model_name = request.model_name or get_default_model(provider, user_id=user_id) or ""
+    model_name = requested_model or get_default_model(provider, user_id=user_id) or ""
 
     # Get all configured variables for the provider
     provider_vars = get_all_variables_for_provider(user_id, provider)

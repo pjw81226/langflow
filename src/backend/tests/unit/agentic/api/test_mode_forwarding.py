@@ -94,3 +94,81 @@ async def test_assist_stream_forwards_the_action(action):
             pass
 
     assert captured["action"] == action
+
+
+class TestAskModel:
+    """A deployment can point Ask turns at a cheaper model than the one that builds flows."""
+
+    @pytest.fixture
+    def _provider_env(self):
+        with (
+            patch(
+                f"{_ROUTER}.get_enabled_providers_for_user",
+                new_callable=AsyncMock,
+                return_value=(["OpenAI"], {}),
+            ),
+            patch(f"{_ROUTER}.get_provider_secret_variable_key", return_value="OPENAI_API_KEY"),
+            patch(f"{_ROUTER}.get_default_model", return_value="gpt-default"),
+            patch(f"{_ROUTER}.get_all_variables_for_provider", return_value={"OPENAI_API_KEY": "sk-test"}),
+            patch(f"{_ROUTER}.get_provider_required_variable_keys", return_value=["OPENAI_API_KEY"]),
+        ):
+            yield
+
+    @staticmethod
+    def _configure(monkeypatch, value: str) -> None:
+        from lfx.services.deps import get_settings_service
+
+        monkeypatch.setattr(get_settings_service().settings, "assistant_ask_model", value)
+
+    @pytest.mark.usefixtures("_provider_env")
+    async def test_an_ask_turn_uses_the_configured_ask_model(self, monkeypatch):
+        self._configure(monkeypatch, "OpenAI:gpt-small")
+
+        ctx = await assistant_router._resolve_assistant_context(
+            _request(mode="ask", provider="OpenAI", model_name="gpt-big"), uuid4(), session=AsyncMock()
+        )
+
+        assert (ctx.provider, ctx.model_name) == ("OpenAI", "gpt-small")
+        assert ctx.global_vars["MODEL_NAME"] == "gpt-small"
+
+    @pytest.mark.usefixtures("_provider_env")
+    @pytest.mark.parametrize("mode", ["build", None])
+    async def test_other_turns_keep_the_model_picked_in_the_panel(self, monkeypatch, mode):
+        self._configure(monkeypatch, "OpenAI:gpt-small")
+
+        ctx = await assistant_router._resolve_assistant_context(
+            _request(mode=mode, provider="OpenAI", model_name="gpt-big"), uuid4(), session=AsyncMock()
+        )
+
+        assert ctx.model_name == "gpt-big"
+
+    @pytest.mark.usefixtures("_provider_env")
+    async def test_an_ask_model_on_a_provider_that_is_not_configured_is_ignored(self, monkeypatch):
+        """The question still gets answered, with the model the panel sent."""
+        self._configure(monkeypatch, "Anthropic:claude-small")
+
+        ctx = await assistant_router._resolve_assistant_context(
+            _request(mode="ask", provider="OpenAI", model_name="gpt-big"), uuid4(), session=AsyncMock()
+        )
+
+        assert (ctx.provider, ctx.model_name) == ("OpenAI", "gpt-big")
+
+    @pytest.mark.usefixtures("_provider_env")
+    async def test_a_model_name_with_a_colon_of_its_own_is_kept_whole(self, monkeypatch):
+        with patch(f"{_ROUTER}.get_enabled_providers_for_user", new_callable=AsyncMock, return_value=(["Ollama"], {})):
+            self._configure(monkeypatch, "Ollama:llama3.1:8b")
+
+            ctx = await assistant_router._resolve_assistant_context(_request(mode="ask"), uuid4(), session=AsyncMock())
+
+        assert (ctx.provider, ctx.model_name) == ("Ollama", "llama3.1:8b")
+
+    @pytest.mark.usefixtures("_provider_env")
+    @pytest.mark.parametrize("value", ["", "gpt-small", "OpenAI:", ":gpt-small"])
+    async def test_an_empty_or_malformed_setting_changes_nothing(self, monkeypatch, value):
+        self._configure(monkeypatch, value)
+
+        ctx = await assistant_router._resolve_assistant_context(
+            _request(mode="ask", provider="OpenAI", model_name="gpt-big"), uuid4(), session=AsyncMock()
+        )
+
+        assert ctx.model_name == "gpt-big"
