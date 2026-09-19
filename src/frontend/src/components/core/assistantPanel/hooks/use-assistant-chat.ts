@@ -335,6 +335,7 @@ export function useAssistantChat(
             iterations_limit: iterationsLimitRef.current ?? undefined,
             mode: turnMode,
             ...(turnAction ? { action: turnAction } : {}),
+            ...(skipAllRef.current ? { auto_apply: true } : {}),
           },
           {
             onProgress: (event) => {

@@ -75,6 +75,15 @@ ASK_MODE_PREAMBLE = (
     "language of the user's message.]\n\n"
 )
 
+# Prepended on build turns when the panel applies flows without asking. The agent
+# otherwise narrates a flow as "proposed, waiting for your approval", which is
+# false there and leaves the user looking for a button that never appears.
+AUTO_APPLY_PREAMBLE = (
+    "[The panel applies the flow you build to the canvas immediately; there is no approval step. "
+    "Report it as added to the canvas. Do NOT call it proposed or pending, and do not ask the user "
+    "to approve, continue or add it.]\n\n"
+)
+
 OFF_TOPIC_REFUSAL_MESSAGE = (
     "I appreciate your interest, but I'm the Langflow Assistant and can only help with "
     "Langflow-related topics such as building components, creating flows, configuring "

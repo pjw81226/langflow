@@ -312,3 +312,61 @@ async def test_other_turns_keep_the_canvas_reference_unchanged():
     agent_input = await _run_with_canvas(None)
 
     assert "names shown on the canvas:" not in agent_input
+
+
+class TestPanelAutoApply:
+    """With auto-apply on, the agent must not narrate a flow as awaiting approval."""
+
+    async def _agent_input(self, *, intent: str, panel_auto_applies: bool, mode=None) -> str:
+        captured: dict = {}
+
+        def streaming_factory(**kwargs):
+            captured.update(kwargs)
+            return _gen([("end", {"result": "ok"})])
+
+        with (
+            patch(f"{MODULE}.docs_index_available", return_value=True),
+            patch(
+                f"{MODULE}.classify_intent",
+                new_callable=AsyncMock,
+                return_value=IntentResult(intent=intent, translation="build a chatbot"),
+            ),
+            patch(f"{MODULE}.execute_flow_file_streaming", side_effect=streaming_factory),
+            patch(f"{MODULE}.drain_flow_events", return_value=[{"action": "configure"}]),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await _collect(
+                execute_flow_with_validation_streaming(
+                    flow_filename="TestFlow",
+                    input_value="build a chatbot",
+                    global_variables={},
+                    max_retries=1,
+                    mode=mode,
+                    panel_auto_applies=panel_auto_applies,
+                )
+            )
+        return captured["input_value"]
+
+    @pytest.mark.asyncio
+    async def test_a_build_turn_is_told_the_flow_lands_on_the_canvas_at_once(self):
+        agent_input = await self._agent_input(intent="build_flow", panel_auto_applies=True)
+
+        assert "applies the flow you build to the canvas immediately" in agent_input
+
+    @pytest.mark.asyncio
+    async def test_nothing_is_added_when_the_panel_still_asks(self):
+        agent_input = await self._agent_input(intent="build_flow", panel_auto_applies=False)
+
+        assert "applies the flow you build" not in agent_input
+
+    @pytest.mark.asyncio
+    async def test_a_question_is_left_alone(self):
+        agent_input = await self._agent_input(intent="question", panel_auto_applies=True)
+
+        assert "applies the flow you build" not in agent_input
+
+    @pytest.mark.asyncio
+    async def test_an_ask_turn_is_left_alone(self):
+        agent_input = await self._agent_input(intent="build_flow", panel_auto_applies=True, mode="ask")
+
+        assert "applies the flow you build" not in agent_input

@@ -239,6 +239,28 @@ describe("useAssistantChat — auto-applied flows", () => {
       expect(reply?.flowProposalSnapshot).toBeDefined();
     });
 
+    it("should_tell_the_backend_that_flows_are_applied_without_asking", async () => {
+      // Otherwise the agent narrates the flow as "proposed, awaiting approval".
+      localStorage.setItem(SKIP_ALL_KEY, "true");
+      const { result } = renderHook(() => useAssistantChat());
+
+      await act(async () => {
+        await result.current.handleSend("build a PDF chatbot", TEST_MODEL);
+      });
+
+      expect(mockPostAssistStream.mock.calls[0][0].auto_apply).toBe(true);
+    });
+
+    it("should_not_claim_auto_apply_when_the_panel_still_asks", async () => {
+      const { result } = renderHook(() => useAssistantChat());
+
+      await act(async () => {
+        await result.current.handleSend("build a PDF chatbot", TEST_MODEL);
+      });
+
+      expect(mockPostAssistStream.mock.calls[0][0].auto_apply).toBeUndefined();
+    });
+
     it("should_still_propose_instead_of_applying_when_auto_apply_is_off", async () => {
       buildTurn();
       const { result } = renderHook(() => useAssistantChat());

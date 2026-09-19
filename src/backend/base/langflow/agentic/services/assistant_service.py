@@ -88,6 +88,7 @@ from langflow.agentic.services.flow_test_result import skipped as test_result_sk
 from langflow.agentic.services.flow_types import (
     ASK_ASSISTANT_FLOW,
     ASK_MODE_PREAMBLE,
+    AUTO_APPLY_PREAMBLE,
     EDIT_CONTINUATION_INPUT,
     EXECUTION_RETRY_TEMPLATE,
     FLOW_BUILDER_ASSISTANT_FLOW,
@@ -693,11 +694,15 @@ async def execute_flow_with_validation_streaming(
     iterations_limit: int | None = None,
     mode: AssistantMode | None = None,
     action: Literal["test_flow"] | None = None,
+    panel_auto_applies: bool = False,
 ) -> AsyncGenerator[str, None]:
     """Execute flow with validation, yielding SSE progress and token events.
 
     ``action="test_flow"`` is the panel's Test button: the flow on the canvas is run once
     and its ``test_result`` returned. No agent runs, so ``input_value`` is ignored.
+
+    ``panel_auto_applies`` says the panel puts built flows on the canvas without asking, so
+    the agent is told not to describe them as proposals awaiting approval.
 
     ``mode`` is the panel mode the user picked. ``None`` and ``"build"`` keep the
     classifier-driven routing. ``"ask"`` is a read-only help turn: no intent
@@ -1012,6 +1017,8 @@ async def execute_flow_with_validation_streaming(
 
     if is_ask:
         current_input = _ask_input(flow_filename, current_input)
+    elif panel_auto_applies and is_flow_request:
+        current_input = AUTO_APPLY_PREAMBLE + current_input
 
     # Capture the original user prompt BEFORE history/canvas injection so we
     # can record it verbatim in the buffer at end-of-turn. The wrapped

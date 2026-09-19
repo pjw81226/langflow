@@ -64,6 +64,9 @@ class AssistantRequest(BaseModel):
     # "test_flow" runs the flow on the canvas once and returns a test_result. It is
     # not an agent turn: no classification, no LLM, and input_value is ignored.
     action: Literal["test_flow"] | None = None
+    # The panel applies built flows without asking (its auto-apply preference). The
+    # agent is told, so it reports the flow as added to the canvas, not as proposed.
+    auto_apply: bool | None = None
 
     @field_validator("input_value")
     @classmethod

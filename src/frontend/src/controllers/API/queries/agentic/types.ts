@@ -269,6 +269,9 @@ export interface AgenticAssistRequest {
   mode?: AssistantMode;
   /** "test_flow" runs the canvas flow once instead of starting an agent turn. */
   action?: "test_flow";
+  /** The panel applies built flows without asking, so the agent should report
+   * a flow as added to the canvas rather than as a proposal. */
+  auto_apply?: boolean;
 }
 
 export interface AgenticProgressState {
