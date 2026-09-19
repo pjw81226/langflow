@@ -1,4 +1,4 @@
-"""The panel mode on the request must reach the assistant service on both endpoints."""
+"""/assist/stream hands the whole request to the turn handler and resolves the model and session."""
 
 from __future__ import annotations
 
@@ -29,16 +29,19 @@ def _context() -> SimpleNamespace:
         provider="OpenAI",
         model_name="gpt-test",
         api_key_name="OPENAI_API_KEY",
-        session_id="session-1",
+        session_id="agentic_session-1",
         global_vars={},
-        max_retries=1,
     )
 
 
 @pytest.fixture
 def _endpoint_env():
     with (
-        patch(f"{_ROUTER}._validate_flow_access", new_callable=AsyncMock, return_value=SimpleNamespace(id=uuid4())),
+        patch(
+            f"{_ROUTER}._validate_flow_access",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(id=uuid4(), name="My flow", data={"nodes": [], "edges": []}),
+        ),
         patch(f"{_ROUTER}.scoped_model_provider_policy_for_flow", _no_policy_scope),
         patch(f"{_ROUTER}._resolve_assistant_context", new_callable=AsyncMock, return_value=_context()),
         patch(f"{_ROUTER}.release_db_transaction", new_callable=AsyncMock),
@@ -50,54 +53,46 @@ def _user() -> SimpleNamespace:
     return SimpleNamespace(id=uuid4(), is_superuser=False)
 
 
-@pytest.mark.usefixtures("_endpoint_env")
-@pytest.mark.parametrize("mode", ["ask", "build", None])
-async def test_assist_forwards_the_mode(mode):
-    service = AsyncMock(return_value={"result": "ok"})
-    with patch(f"{_ROUTER}.execute_flow_with_validation", service):
-        await assistant_router.assist(_request(mode=mode), _user(), AsyncMock())
-
-    assert service.await_args.kwargs["mode"] == mode
-
-
-@pytest.mark.usefixtures("_endpoint_env")
-@pytest.mark.parametrize("mode", ["ask", "build", None])
-async def test_assist_stream_forwards_the_mode(mode):
+async def _stream(request: AssistantRequest) -> dict:
     captured: dict = {}
 
-    async def fake_stream(**kwargs):
-        captured.update(kwargs)
+    async def fake_turn(turn_request, **kwargs):
+        captured.update(kwargs, request=turn_request)
         yield "data: {}\n\n"
 
     http_request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    with patch(f"{_ROUTER}.execute_flow_with_validation_streaming", fake_stream):
-        response = await assistant_router.assist_stream(_request(mode=mode), http_request, _user(), AsyncMock())
+    with patch(f"{_ROUTER}.stream_assistant_turn", fake_turn):
+        response = await assistant_router.assist_stream(request, http_request, _user(), AsyncMock())
         async for _chunk in response.body_iterator:
             pass
-
-    assert captured["mode"] == mode
+    return captured
 
 
 @pytest.mark.usefixtures("_endpoint_env")
-@pytest.mark.parametrize("action", ["test_flow", None])
-async def test_assist_stream_forwards_the_action(action):
-    captured: dict = {}
+@pytest.mark.parametrize("mode", ["component", "prompt", "ask"])
+async def test_the_stream_hands_the_request_to_the_turn_handler(mode, monkeypatch):
+    from lfx.services.deps import get_settings_service
 
-    async def fake_stream(**kwargs):
-        captured.update(kwargs)
-        yield "data: {}\n\n"
+    monkeypatch.setattr(get_settings_service().settings, "allow_custom_components", True)
+    request = _request(mode=mode, component_id="Agent-a1", field_name="system_prompt", field_value="Be brief.")
 
-    http_request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    with patch(f"{_ROUTER}.execute_flow_with_validation_streaming", fake_stream):
-        response = await assistant_router.assist_stream(_request(action=action), http_request, _user(), AsyncMock())
-        async for _chunk in response.body_iterator:
-            pass
+    captured = await _stream(request)
 
-    assert captured["action"] == action
+    assert captured["request"] is request
+    assert captured["session_id"] == "agentic_session-1"
+    assert captured["model_name"] == "gpt-test"
+    assert captured["canvas"] == {"name": "My flow", "data": {"nodes": [], "edges": []}}
+
+
+@pytest.mark.usefixtures("_endpoint_env")
+async def test_the_test_action_reaches_the_turn_handler():
+    captured = await _stream(AssistantRequest(flow_id=str(uuid4()), action="test_flow"))
+
+    assert captured["request"].action == "test_flow"
 
 
 class TestAskModel:
-    """A deployment can point Ask turns at a cheaper model than the one that builds flows."""
+    """A deployment can point Ask turns at a cheaper model than the one that writes components and prompts."""
 
     @pytest.fixture
     def _provider_env(self):
@@ -132,7 +127,7 @@ class TestAskModel:
         assert ctx.global_vars["MODEL_NAME"] == "gpt-small"
 
     @pytest.mark.usefixtures("_provider_env")
-    @pytest.mark.parametrize("mode", ["build", None])
+    @pytest.mark.parametrize("mode", ["component", "prompt"])
     async def test_other_turns_keep_the_model_picked_in_the_panel(self, monkeypatch, mode):
         self._configure(monkeypatch, "OpenAI:gpt-small")
 
@@ -172,3 +167,31 @@ class TestAskModel:
         )
 
         assert ctx.model_name == "gpt-big"
+
+
+class TestSessionIds:
+    """Every assistant session id carries the prefix that keeps it out of the Playground."""
+
+    @pytest.fixture
+    def _provider_env(self):
+        with (
+            patch(f"{_ROUTER}.get_enabled_providers_for_user", new_callable=AsyncMock, return_value=(["OpenAI"], {})),
+            patch(f"{_ROUTER}.get_provider_secret_variable_key", return_value="OPENAI_API_KEY"),
+            patch(f"{_ROUTER}.get_default_model", return_value="gpt-default"),
+            patch(f"{_ROUTER}.get_all_variables_for_provider", return_value={"OPENAI_API_KEY": "sk-test"}),
+            patch(f"{_ROUTER}.get_provider_required_variable_keys", return_value=["OPENAI_API_KEY"]),
+        ):
+            yield
+
+    @pytest.mark.usefixtures("_provider_env")
+    @pytest.mark.parametrize(("sent", "expected_prefix"), [("abc", "agentic_abc"), ("agentic_abc", "agentic_abc")])
+    async def test_a_client_session_id_is_prefixed_once(self, sent, expected_prefix):
+        ctx = await assistant_router._resolve_assistant_context(_request(session_id=sent), uuid4(), session=AsyncMock())
+
+        assert ctx.session_id == expected_prefix
+
+    @pytest.mark.usefixtures("_provider_env")
+    async def test_a_missing_session_id_gets_a_prefixed_one(self):
+        ctx = await assistant_router._resolve_assistant_context(_request(), uuid4(), session=AsyncMock())
+
+        assert ctx.session_id.startswith("agentic_")

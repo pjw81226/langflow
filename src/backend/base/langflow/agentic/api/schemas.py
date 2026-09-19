@@ -3,30 +3,19 @@
 from typing import Literal
 
 from lfx.services.deps import get_settings_service
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # All possible step types for SSE progress events
 StepType = Literal[
-    "generating",  # LLM is generating response
-    "generating_component",  # LLM is generating component code
-    "generating_plan",  # LLM is drafting a plan (precedes propose_plan / build_flow)
-    "generating_flow",  # LLM is building a flow
-    "orchestrating",  # Single agent loop working a multi-ask request (component + flow + run)
-    "generation_complete",  # LLM finished generating
-    "extracting_code",  # Extracting Python code from response
-    "validating",  # Validating component code
-    "validated",  # Validation succeeded
-    "validation_failed",  # Validation failed
-    "retrying",  # About to retry with error context
-    "searching_components",  # Agent is searching for components
-    "building_flow",  # Agent is building a flow from spec
-    "flow_built",  # Flow built successfully
-    "flow_build_failed",  # Flow build failed
-    "flow_proposal_ready",  # Build-from-scratch flow ready, gated on user Continue/Dismiss
-    "verifying_flow",  # The built flow is being test-run before it is delivered
+    "generating",  # The Ask agent is answering
+    "generating_component",  # The component writer is writing code
+    "extracting_code",  # Extracting Python code from the reply
+    "validating",  # Checking the component code
+    "validated",  # The code passed every check
+    "validation_failed",  # A check failed
+    "retrying",  # About to retry with the error as context
     "writing_prompt",  # The prompt writer is drafting instructions
-    "generating_document",  # Agent is materializing a file in the sandboxed workspace
-    "document_ready",  # File write completed
+    "verifying_flow",  # The Test flow action is running the flow
 ]
 
 
@@ -53,31 +42,24 @@ def _reject_overlong_message(value: str | None) -> str | None:
 
 
 class AssistantRequest(BaseModel):
-    """Request model for assistant interactions."""
+    """Request model for one assistant turn."""
 
     flow_id: str
-    component_id: str | None = None
-    field_name: str | None = None
-    # The live text of ``field_name`` on ``component_id``, sent with Prompt turns. It is
-    # quoted data, not a message, so it keeps its line breaks and has its own cap.
-    field_value: str | None = Field(None, max_length=20_000)
     input_value: str | None = None
-    max_retries: int | None = Field(None, ge=1, le=5)
     model_name: str | None = None
     provider: str | None = None
-    session_id: str | None = None
-    history_limit: int | None = Field(None, ge=0, le=100)
-    iterations_limit: int | None = Field(None, ge=1, le=200)
-    # Panel mode chosen by the user. None keeps the classifier-driven routing;
-    # "ask" is a read-only help turn that never changes the canvas. "component" and
-    # "prompt" are the tabs of the assistant that replaces the classifier.
-    mode: Literal["build", "ask", "component", "prompt"] | None = None
+    session_id: str | None = Field(None, max_length=128)
+    # The tab the user sent the message from. "ask" is a read-only help turn.
+    mode: Literal["component", "prompt", "ask"] = "ask"
     # "test_flow" runs the flow on the canvas once and returns a test_result. It is
-    # not an agent turn: no classification, no LLM, and input_value is ignored.
+    # not an agent turn: no LLM runs, and input_value is only the panel's label.
     action: Literal["test_flow"] | None = None
-    # The panel applies built flows without asking (its auto-apply preference). The
-    # agent is told, so it reports the flow as added to the canvas, not as proposed.
-    auto_apply: bool | None = None
+    # The Prompt tab's target: which component and field the instructions are for.
+    component_id: str | None = Field(None, max_length=200)
+    field_name: str | None = Field(None, max_length=100)
+    # The live text of that field. It is quoted data, not a message, so it keeps its
+    # line breaks and has its own cap.
+    field_value: str | None = Field(None, max_length=20_000)
     # UI labels as the user sees them, {English label: label in the UI language}, sent
     # with Ask turns when the UI is not in English. The docs are English, so without it
     # a label quoted in the user's language cannot be matched to what the docs describe.
@@ -101,6 +83,13 @@ class AssistantRequest(BaseModel):
     @classmethod
     def check_input_value_length(cls, value: str | None) -> str | None:
         return _reject_overlong_message(value)
+
+    @model_validator(mode="after")
+    def check_message_present(self) -> "AssistantRequest":
+        if self.action is None and not (self.input_value or "").strip():
+            msg = "input_value is required unless an action is given."
+            raise ValueError(msg)
+        return self
 
 
 class ValidationResult(BaseModel):

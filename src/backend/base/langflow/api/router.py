@@ -116,18 +116,16 @@ include_deployment_router(router_v1)
 # Agentic flow execution - lazy import to avoid circular dependency
 def _include_agentic_router():
     from langflow.agentic.api.deps import require_agentic_experience
-    from langflow.agentic.api.files_router import router as agentic_files_router
     from langflow.agentic.api.router import router as agentic_router
     from langflow.agentic.api.sessions_router import router as agentic_sessions_router
     from langflow.api.v1.agentic_mcp import router as agentic_mcp_router
 
-    # SECURITY (Issue 15): gate the sandbox-management routers on agentic_experience. The
-    # code-exec endpoints inside agentic_router (/assist, /assist/stream, /execute) carry the same
-    # gate per-route (see agentic/api/router.py) so the read-only /agentic/check-config probe stays
-    # reachable for non-agentic deployments.
+    # SECURITY (Issue 15): gate the session router on agentic_experience. The code-running
+    # endpoint inside agentic_router (/assist/stream) carries the same gate per-route (see
+    # agentic/api/router.py) so the read-only /agentic/check-config probe stays reachable for
+    # non-agentic deployments.
     agentic_gate = [Depends(require_agentic_experience)]
     router_v1.include_router(agentic_router)
-    router_v1.include_router(agentic_files_router, dependencies=agentic_gate)
     router_v1.include_router(agentic_sessions_router, dependencies=agentic_gate)
     router_v1.include_router(agentic_mcp_router)
 

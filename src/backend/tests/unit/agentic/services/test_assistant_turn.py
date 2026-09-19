@@ -118,7 +118,6 @@ def _complete(events):
         ("component", f"Shouts.\n```python\n{SHOUT}```", "component_writer"),
         ("prompt", "Done.\n````prompt\nBe kind.\n````", "prompt_writer"),
         ("ask", "Use the Read File component.", "ask_assistant"),
-        (None, "Use the Read File component.", "ask_assistant"),
     ],
 )
 async def test_each_tab_runs_its_own_agent(executor, mode, reply, flow):
@@ -127,13 +126,13 @@ async def test_each_tab_runs_its_own_agent(executor, mode, reply, flow):
     events = await _run(AssistantRequest(flow_id="flow-1", input_value="help me", mode=mode))
 
     assert [call["flow_filename"] for call in fake.calls] == [flow]
-    assert _complete(events)["mode"] == (mode or "ask")
+    assert _complete(events)["mode"] == mode
 
 
-async def test_the_old_build_mode_is_answered_as_a_question(executor):
+async def test_a_request_without_a_tab_is_answered_as_a_question(executor):
     fake = executor("Build flows on the canvas.")
 
-    await _run(AssistantRequest(flow_id="flow-1", input_value="build a chatbot", mode="build"))
+    await _run(AssistantRequest(flow_id="flow-1", input_value="build a chatbot"))
 
     assert fake.calls[0]["flow_filename"] == "ask_assistant"
 

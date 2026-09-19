@@ -1,6 +1,6 @@
-"""Agentic routers must stay hidden from /openapi.json.
+"""Agentic routers must stay hidden from /openapi.json, and removed routes stay gone.
 
-The assistant and files HTTP surfaces are internal. They are mounted with
+The assistant HTTP surfaces are internal. They are mounted with
 ``include_in_schema=False`` so they do not appear in the published OpenAPI
 spec, Swagger UI, or generated SDKs.
 """
@@ -9,60 +9,35 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from langflow.agentic.api.files_router import router as files_router
 from langflow.agentic.api.router import router as assistant_router
+from langflow.agentic.api.sessions_router import router as sessions_router
 
-HIDDEN_AGENTIC_PATHS = (
-    "/agentic/assist",
-    "/agentic/assist/stream",
-    "/agentic/check-config",
-    "/agentic/files",
-    "/agentic/execute/{flow_name}",
-)
+KEPT_ROUTES = ("/agentic/assist/stream", "/agentic/check-config", "/agentic/sessions/reset")
+
+# Routes of the assistant this one replaced. Nothing may serve them any more.
+REMOVED_ROUTES = ("/agentic/assist", "/agentic/assist/run", "/agentic/execute/{flow_name}", "/agentic/files")
 
 
-def _build_schema() -> dict:
-    """Mount the two agentic routers on a clean FastAPI app and return its OpenAPI schema."""
+def _app() -> FastAPI:
     app = FastAPI()
     app.include_router(assistant_router)
-    app.include_router(files_router)
-    client = TestClient(app)
-    response = client.get("/openapi.json")
+    app.include_router(sessions_router)
+    return app
+
+
+def test_the_assistant_routes_are_hidden_from_the_schema():
+    response = TestClient(_app()).get("/openapi.json")
+
     assert response.status_code == 200
-    return response.json()
+    paths = response.json().get("paths", {})
+    for route in (*KEPT_ROUTES, *REMOVED_ROUTES):
+        assert route not in paths, f"{route} must not be in the OpenAPI schema"
 
 
-class TestAgenticRoutersHiddenFromOpenApi:
-    """Agentic endpoints are internal and must not appear in the OpenAPI schema."""
+def test_only_the_new_assistant_routes_are_mounted():
+    mounted = {route.path for route in (*assistant_router.routes, *sessions_router.routes)}
 
-    def test_should_hide_assist_endpoint(self):
-        paths = _build_schema().get("paths", {})
-        assert "/agentic/assist" not in paths, f"Expected /agentic/assist to be hidden, got paths: {sorted(paths)}"
-
-    def test_should_hide_assist_stream_endpoint(self):
-        paths = _build_schema().get("paths", {})
-        assert "/agentic/assist/stream" not in paths, (
-            f"Expected /agentic/assist/stream to be hidden, got paths: {sorted(paths)}"
-        )
-
-    def test_should_hide_check_config_endpoint(self):
-        paths = _build_schema().get("paths", {})
-        assert "/agentic/check-config" not in paths, (
-            f"Expected /agentic/check-config to be hidden, got paths: {sorted(paths)}"
-        )
-
-    def test_should_hide_files_endpoint(self):
-        paths = _build_schema().get("paths", {})
-        assert "/agentic/files" not in paths, f"Expected /agentic/files to be hidden, got paths: {sorted(paths)}"
-
-    def test_should_hide_execute_endpoint(self):
-        paths = _build_schema().get("paths", {})
-        assert "/agentic/execute/{flow_name}" not in paths, (
-            f"Expected /agentic/execute/{{flow_name}} to be hidden, got paths: {sorted(paths)}"
-        )
-
-    def test_schema_contains_no_agentic_paths(self):
-        paths = _build_schema().get("paths", {})
-        leaked = [path for path in HIDDEN_AGENTIC_PATHS if path in paths]
-        assert leaked == [], f"Agentic endpoints leaked into OpenAPI: {leaked}"
-        assert paths == {}, f"Agentic routers must be hidden from OpenAPI, got paths: {sorted(paths)}"
+    for route in KEPT_ROUTES:
+        assert route in mounted
+    for route in REMOVED_ROUTES:
+        assert route not in mounted

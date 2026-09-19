@@ -46,20 +46,6 @@ class TestFormatFileWrittenEvent:
             format_file_written_event(action="write_file", path="/etc/passwd", size=1)
 
 
-class TestStepTypeIncludesGeneratingDocument:
-    """B4 — StepType Literal includes the new step values."""
-
-    def test_step_type_should_include_generating_document(self):
-        # Literal types are introspectable via typing.get_args.
-        from typing import get_args
-
-        from langflow.agentic.api.schemas import StepType
-
-        members = set(get_args(StepType))
-        assert "generating_document" in members, members
-        assert "document_ready" in members, members
-
-
 class TestStreamingEmitsFileWrittenEvents:
     """B4 — SSE pipeline yields file_written events drained between tokens."""
 

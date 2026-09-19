@@ -16,35 +16,30 @@ from pydantic import ValidationError
 class TestAssistantRequest:
     """Tests for AssistantRequest schema."""
 
-    def test_should_create_with_required_field_only(self):
-        """Should create request with only required flow_id field."""
-        request = AssistantRequest(flow_id="test-flow-id")
+    def test_should_create_with_a_message_only(self):
+        request = AssistantRequest(flow_id="test-flow-id", input_value="hi")
 
         assert request.flow_id == "test-flow-id"
+        assert request.mode == "ask"
+        assert request.action is None
         assert request.component_id is None
         assert request.field_name is None
-        assert request.input_value is None
-        assert request.max_retries is None
+        assert request.field_value is None
         assert request.model_name is None
         assert request.provider is None
         assert request.session_id is None
 
-    def test_should_default_mode_to_none(self):
-        """No mode keeps the classifier-driven routing (backward compatible)."""
-        request = AssistantRequest(flow_id="test-flow-id")
-
-        assert request.mode is None
-
-    @pytest.mark.parametrize("mode", ["build", "ask"])
-    def test_should_accept_the_panel_modes(self, mode):
-        request = AssistantRequest(flow_id="test-flow-id", mode=mode)
+    @pytest.mark.parametrize("mode", ["component", "prompt", "ask"])
+    def test_should_accept_the_panel_tabs(self, mode):
+        request = AssistantRequest(flow_id="test-flow-id", input_value="hi", mode=mode)
 
         assert request.mode == mode
         assert AssistantRequest.model_validate_json(request.model_dump_json()).mode == mode
 
-    def test_should_reject_an_unknown_mode(self):
+    @pytest.mark.parametrize("mode", ["build", "chat", None])
+    def test_should_reject_other_modes(self, mode):
         with pytest.raises(ValidationError):
-            AssistantRequest(flow_id="test-flow-id", mode="chat")
+            AssistantRequest(flow_id="test-flow-id", input_value="hi", mode=mode)
 
     def test_should_accept_the_test_flow_action_without_a_message(self):
         """The Test button sends no text."""
@@ -53,90 +48,73 @@ class TestAssistantRequest:
         assert request.action == "test_flow"
         assert request.input_value is None
 
+    def test_should_require_a_message_for_an_agent_turn(self):
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id")
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id", input_value="   ")
+
     def test_should_default_to_no_action_and_reject_unknown_ones(self):
-        assert AssistantRequest(flow_id="test-flow-id").action is None
+        assert AssistantRequest(flow_id="test-flow-id", input_value="hi").action is None
         with pytest.raises(ValidationError):
             AssistantRequest(flow_id="test-flow-id", action="delete_flow")
 
+    def test_should_carry_the_prompt_target_with_its_line_breaks(self):
+        request = AssistantRequest(
+            flow_id="flow-123",
+            input_value="Make it friendly",
+            mode="prompt",
+            component_id="Agent-a1",
+            field_name="system_prompt",
+            field_value="Rule one.\nRule two.",
+        )
+
+        assert request.field_value == "Rule one.\nRule two."
+
+    def test_should_cap_the_field_value(self):
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="f", input_value="hi", mode="prompt", field_value="x" * 20_001)
+
+    def test_should_cap_the_session_id(self):
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="f", input_value="hi", session_id="s" * 129)
+
+    def test_should_ignore_fields_the_old_panel_sent(self):
+        request = AssistantRequest.model_validate(
+            {"flow_id": "f", "input_value": "hi", "auto_apply": True, "history_limit": 3, "max_retries": 2}
+        )
+
+        assert not hasattr(request, "auto_apply")
+        assert "history_limit" not in request.model_dump()
+
     def test_should_accept_a_small_ui_glossary(self):
-        request = AssistantRequest(flow_id="test-flow-id", mode="ask", ui_glossary={"Ask": "질문하기"})
+        request = AssistantRequest(flow_id="test-flow-id", input_value="hi", ui_glossary={"Ask": "질문하기"})
 
         assert request.ui_glossary == {"Ask": "질문하기"}
 
     def test_should_reject_a_glossary_used_as_a_second_prompt(self):
         with pytest.raises(ValidationError):
-            AssistantRequest(flow_id="test-flow-id", ui_glossary={f"label {i}": "x" for i in range(61)})
+            AssistantRequest(
+                flow_id="test-flow-id", input_value="hi", ui_glossary={f"label {i}": "x" for i in range(61)}
+            )
         with pytest.raises(ValidationError):
-            AssistantRequest(flow_id="test-flow-id", ui_glossary={"Ask": "x" * 81})
-
-    def test_should_create_with_all_fields(self):
-        """Should create request with all fields populated."""
-        request = AssistantRequest(
-            flow_id="flow-123",
-            component_id="comp-456",
-            field_name="input_field",
-            input_value="Hello, world!",
-            max_retries=5,
-            model_name="gpt-4",
-            provider="OpenAI",
-            session_id="session-789",
-        )
-
-        assert request.flow_id == "flow-123"
-        assert request.component_id == "comp-456"
-        assert request.field_name == "input_field"
-        assert request.input_value == "Hello, world!"
-        assert request.max_retries == 5
-        assert request.model_name == "gpt-4"
-        assert request.provider == "OpenAI"
-        assert request.session_id == "session-789"
+            AssistantRequest(flow_id="test-flow-id", input_value="hi", ui_glossary={"Ask": "x" * 81})
 
     def test_should_raise_error_for_missing_flow_id(self):
         """Should raise validation error when flow_id is missing."""
         with pytest.raises(ValidationError) as exc_info:
-            AssistantRequest()
+            AssistantRequest(input_value="hi")
 
         assert "flow_id" in str(exc_info.value)
 
-    def test_should_accept_empty_string_for_optional_fields(self):
-        """Should accept empty string for optional string fields."""
-        request = AssistantRequest(
-            flow_id="test",
-            input_value="",
-            component_id="",
-        )
-
-        assert request.input_value == ""
-        assert request.component_id == ""
-
     def test_should_serialize_to_dict(self):
-        """Should serialize to dictionary correctly."""
-        request = AssistantRequest(
-            flow_id="test-flow",
-            max_retries=3,
-            provider="Anthropic",
-        )
+        request = AssistantRequest(flow_id="test-flow", input_value="hi", provider="Anthropic")
 
         data = request.model_dump()
 
         assert data["flow_id"] == "test-flow"
-        assert data["max_retries"] == 3
         assert data["provider"] == "Anthropic"
         assert data["component_id"] is None
-
-    def test_should_deserialize_from_dict(self):
-        """Should deserialize from dictionary correctly."""
-        data = {
-            "flow_id": "test-flow",
-            "input_value": "test input",
-            "max_retries": 2,
-        }
-
-        request = AssistantRequest(**data)
-
-        assert request.flow_id == "test-flow"
-        assert request.input_value == "test input"
-        assert request.max_retries == 2
 
 
 class TestValidationResult:
@@ -209,22 +187,23 @@ class TestStepType:
     """Tests for StepType literal type."""
 
     def test_should_define_all_expected_step_types(self):
-        """Should define all expected step types."""
+        """Should define exactly the steps the assistant emits."""
         expected_steps = [
             "generating",
-            "generation_complete",
+            "generating_component",
             "extracting_code",
             "validating",
             "validated",
             "validation_failed",
             "retrying",
+            "writing_prompt",
+            "verifying_flow",
         ]
 
         # StepType is a Literal, we can check its args
         step_type_args = StepType.__args__
 
-        for step in expected_steps:
-            assert step in step_type_args, f"Missing step type: {step}"
+        assert set(step_type_args) == set(expected_steps)
 
     def test_step_types_should_be_strings(self):
         """All step types should be strings."""
@@ -241,16 +220,13 @@ class TestSchemaIntegration:
             flow_id="test-flow",
             component_id="comp-1",
             input_value="test",
-            max_retries=3,
+            mode="component",
         )
 
         json_str = original.model_dump_json()
         restored = AssistantRequest.model_validate_json(json_str)
 
-        assert restored.flow_id == original.flow_id
-        assert restored.component_id == original.component_id
-        assert restored.input_value == original.input_value
-        assert restored.max_retries == original.max_retries
+        assert restored == original
 
     def test_validation_result_json_round_trip(self):
         """Should survive JSON serialization round trip."""

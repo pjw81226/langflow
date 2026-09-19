@@ -42,9 +42,8 @@ def _ctx_stub() -> _AssistantContext:
         provider="OpenAI",
         model_name="gpt-4o",
         api_key_name="OPENAI_API_KEY",  # pragma: allowlist secret
-        session_id="txn-release-test",
+        session_id="agentic_txn-release-test",
         global_vars={},
-        max_retries=1,
     )
 
 
@@ -70,35 +69,14 @@ def _capturing_resolver(captured: dict):
 
 
 @pytest.mark.usefixtures("_agentic_enabled")
-async def test_assist_releases_transaction_before_model_run(client: AsyncClient, simple_api_test, logged_in_headers):
-    captured: dict = {}
-
-    async def fake_execute(**_kwargs):
-        captured["in_transaction"] = captured["session"].in_transaction()
-        return {"result": "ok"}
-
-    with (
-        patch(f"{_ROUTER}._resolve_assistant_context", side_effect=_capturing_resolver(captured)),
-        patch(f"{_ROUTER}.execute_flow_with_validation", side_effect=fake_execute),
-    ):
-        response = await client.post(
-            "api/v1/agentic/assist",
-            json={"flow_id": simple_api_test["id"], "input_value": "build a flow"},
-            headers=logged_in_headers,
-        )
-
-    assert response.status_code == 200, response.text
-    assert captured["in_transaction"] is False, "the request transaction must be committed before the model run"
-    assert captured["provider_policy_preflight"].attributes["provider_scope_required"] is True
-
-
-@pytest.mark.usefixtures("_agentic_enabled")
 async def test_assist_stream_releases_transaction_before_streaming(
     client: AsyncClient, simple_api_test, logged_in_headers
 ):
     captured: dict = {}
 
-    def fake_stream(**_kwargs):
+    def fake_stream(_request, **kwargs):
+        captured["canvas"] = kwargs["canvas"]
+
         async def gen():
             from lfx.services.model_provider_policy import current_model_provider_policy_context
 
@@ -112,7 +90,7 @@ async def test_assist_stream_releases_transaction_before_streaming(
 
     with (
         patch(f"{_ROUTER}._resolve_assistant_context", side_effect=_capturing_resolver(captured)),
-        patch(f"{_ROUTER}.execute_flow_with_validation_streaming", side_effect=fake_stream),
+        patch(f"{_ROUTER}.stream_assistant_turn", side_effect=fake_stream),
     ):
         response = await client.post(
             "api/v1/agentic/assist/stream",
@@ -122,33 +100,11 @@ async def test_assist_stream_releases_transaction_before_streaming(
 
     assert response.status_code == 200, response.text
     assert captured["in_transaction"] is False, "the request transaction must not span the assistant's SSE stream"
+    # The canvas is copied before the release, which expires the ORM object's attributes.
+    assert captured["canvas"]["name"] == simple_api_test["name"]
+    assert isinstance(captured["canvas"]["data"], dict)
     assert captured["provider_policy_preflight"].attributes["provider_scope_required"] is True
     assert captured["provider_policy_stream"].attributes["provider_scope_required"] is True
-
-
-@pytest.mark.usefixtures("_agentic_enabled")
-async def test_execute_named_flow_releases_transaction_before_run(
-    client: AsyncClient, simple_api_test, logged_in_headers
-):
-    captured: dict = {}
-
-    async def fake_execute_flow_file(**_kwargs):
-        captured["in_transaction"] = captured["session"].in_transaction()
-        return {"result": "ok"}
-
-    with (
-        patch(f"{_ROUTER}._resolve_assistant_context", side_effect=_capturing_resolver(captured)),
-        patch(f"{_ROUTER}.execute_flow_file", side_effect=fake_execute_flow_file),
-    ):
-        response = await client.post(
-            "api/v1/agentic/execute/TestFlow",
-            json={"flow_id": simple_api_test["id"], "input_value": "run it"},
-            headers=logged_in_headers,
-        )
-
-    assert response.status_code == 200, response.text
-    assert captured["in_transaction"] is False, "the request transaction must be committed before the named-flow run"
-    assert captured["provider_policy_preflight"].attributes["provider_scope_required"] is True
 
 
 @pytest.mark.parametrize(
@@ -156,7 +112,7 @@ async def test_execute_named_flow_releases_transaction_before_run(
     [("not-a-uuid", 422), ("00000000-0000-4000-8000-000000000001", 404)],
 )
 @pytest.mark.usefixtures("_agentic_enabled")
-async def test_execute_named_flow_rejects_invalid_target_before_provider_discovery(
+async def test_assist_stream_rejects_invalid_target_before_provider_discovery(
     client: AsyncClient,
     logged_in_headers,
     flow_id: str,
@@ -165,8 +121,8 @@ async def test_execute_named_flow_rejects_invalid_target_before_provider_discove
     resolver = AsyncMock(side_effect=AssertionError("provider discovery reached before target validation"))
     with patch(f"{_ROUTER}._resolve_assistant_context", resolver):
         response = await client.post(
-            "api/v1/agentic/execute/TestFlow",
-            json={"flow_id": flow_id, "input_value": "run it"},
+            "api/v1/agentic/assist/stream",
+            json={"flow_id": flow_id, "input_value": "what is this"},
             headers=logged_in_headers,
         )
 

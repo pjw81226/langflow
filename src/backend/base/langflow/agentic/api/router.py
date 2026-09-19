@@ -1,15 +1,17 @@
 """Langflow Assistant API router.
 
-This module provides the HTTP endpoints for the Langflow Assistant.
-All business logic is delegated to service modules.
+The assistant has three tabs (Component, Prompt, Ask) and a Test flow button,
+all served by ``/assist/stream``. Business logic lives in the service modules;
+this router checks access, resolves the model, snapshots the canvas and hands
+the turn to ``stream_assistant_turn``.
 """
 
-import uuid
+import copy
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from lfx.base.models.unified_models import (
     get_all_variables_for_provider,
@@ -25,15 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from langflow.agentic.api.deps import require_agentic_experience
 from langflow.agentic.api.schemas import AssistantRequest
-from langflow.agentic.services.assistant_service import (
-    execute_flow_with_validation,
-    execute_flow_with_validation_streaming,
-)
-from langflow.agentic.services.flow_executor import execute_flow_file
-from langflow.agentic.services.flow_types import (
-    LANGFLOW_ASSISTANT_FLOW,
-    MAX_VALIDATION_RETRIES,
-)
+from langflow.agentic.services.assistant_turn import stream_assistant_turn
+from langflow.agentic.services.conversation_history import normalize_session_id
 from langflow.agentic.services.provider_service import (
     PREFERRED_PROVIDERS,
     build_live_only_provider_entries,
@@ -42,6 +37,10 @@ from langflow.agentic.services.provider_service import (
     list_installed_tool_calling_models,
 )
 from langflow.api.utils.core import CurrentActiveUser, DbSession, release_db_transaction
+from langflow.services.authorization.access_ceiling import (
+    external_access_allows,
+    get_current_external_access_context,
+)
 from langflow.services.model_provider_policy_scope import scoped_model_provider_policy_for_flow
 
 router = APIRouter(prefix="/agentic", tags=["Agentic"], include_in_schema=False)
@@ -56,7 +55,6 @@ class _AssistantContext:
     api_key_name: str | None
     session_id: str
     global_vars: dict[str, str]
-    max_retries: int
 
 
 def _configured_ask_model() -> tuple[str | None, str | None]:
@@ -156,24 +154,17 @@ async def _resolve_assistant_context(
         "PROVIDER": provider,
     }
 
-    # Seeded here (not per-endpoint) so /assist and /execute/{flow_name}
-    # honor the budget the same way /assist/stream does.
-    if request.iterations_limit is not None:
-        global_vars["ITERATIONS_LIMIT"] = str(request.iterations_limit)
-
     # Inject all provider variables into the global context
     global_vars.update(provider_vars)
-
-    session_id = request.session_id or str(uuid.uuid4())
-    max_retries = request.max_retries if request.max_retries is not None else MAX_VALIDATION_RETRIES
 
     return _AssistantContext(
         provider=provider,
         model_name=model_name,
         api_key_name=api_key_name,
-        session_id=session_id,
+        # The agents store their replies under the user's flow; the prefix keeps
+        # these sessions out of the Playground.
+        session_id=normalize_session_id(request.session_id),
         global_vars=global_vars,
-        max_retries=max_retries,
     )
 
 
@@ -199,50 +190,6 @@ async def _validate_flow_access(flow_id: str | None, user_id: UUID, session: Asy
     if flow is None or (flow.user_id is not None and str(flow.user_id) != str(user_id)):
         raise HTTPException(status_code=404, detail="Flow not found.")
     return flow
-
-
-@router.post("/execute/{flow_name}", dependencies=[Depends(require_agentic_experience)])
-async def execute_named_flow(
-    flow_name: str,
-    request: AssistantRequest,
-    current_user: CurrentActiveUser,
-    session: DbSession,
-) -> dict:
-    """Execute a named flow from the flows directory.
-
-    Named assistant flows embed an Agent that needs provider/model/api-key
-    context. Resolving it here (instead of running the raw file) turns a
-    silent 500 into a successful run, or a clear 4xx when no provider is set.
-    """
-    flow = await _validate_flow_access(request.flow_id, current_user.id, session)
-    with scoped_model_provider_policy_for_flow(
-        flow,
-        user_id=current_user.id,
-        is_superuser=bool(current_user.is_superuser),
-    ):
-        ctx = await _resolve_assistant_context(request, current_user.id, session)
-
-        # The flow run below can wait on a model for minutes; don't hold the
-        # request transaction (and its pooled connection) open across it (#14445).
-        await release_db_transaction(session)
-
-        global_vars = dict(ctx.global_vars)
-        if request.component_id:
-            global_vars["COMPONENT_ID"] = request.component_id
-        if request.field_name:
-            global_vars["FIELD_NAME"] = request.field_name
-
-        return await execute_flow_file(
-            flow_filename=f"{flow_name}.json",
-            input_value=request.input_value,
-            global_variables=global_vars,
-            verbose=True,
-            user_id=str(current_user.id),
-            session_id=ctx.session_id,
-            provider=ctx.provider,
-            model_name=ctx.model_name,
-            api_key_var=ctx.api_key_name,
-        )
 
 
 @router.get("/check-config")
@@ -354,41 +301,39 @@ async def check_assistant_config(
     }
 
 
-@router.post("/assist", dependencies=[Depends(require_agentic_experience)])
-async def assist(
-    request: AssistantRequest,
-    current_user: CurrentActiveUser,
-    session: DbSession,
-) -> dict:
-    """Chat with the Langflow Assistant."""
-    flow = await _validate_flow_access(request.flow_id, current_user.id, session)
-    with scoped_model_provider_policy_for_flow(
-        flow,
-        user_id=current_user.id,
-        is_superuser=bool(current_user.is_superuser),
-    ):
-        # Scope is bound before provider discovery so a denial cannot inspect
-        # provider variables, load credentials, or probe a live catalog.
-        ctx = await _resolve_assistant_context(request, current_user.id, session)
+def _require_component_creation_allowed(user) -> None:
+    """Refuse a Component turn the user could never add to the canvas.
 
-        logger.info(f"Executing {LANGFLOW_ASSISTANT_FLOW} with {ctx.provider}/{ctx.model_name}")
-
-        # The assistant run below can wait on a model for minutes; don't hold the
-        # request transaction (and its pooled connection) open across it (#14445).
-        await release_db_transaction(session)
-
-        return await execute_flow_with_validation(
-            flow_filename=LANGFLOW_ASSISTANT_FLOW,
-            input_value=request.input_value or "",
-            global_variables=ctx.global_vars,
-            max_retries=ctx.max_retries,
-            user_id=str(current_user.id),
-            session_id=ctx.session_id,
-            provider=ctx.provider,
-            model_name=ctx.model_name,
-            api_key_var=ctx.api_key_name,
-            mode=request.mode,
+    Mirrors ``POST /api/v1/custom_component``, the route the panel's Add to canvas
+    button calls: without this, a user could get a component that passed every
+    check and then have it refused with 403 when adding it.
+    """
+    external_context = get_current_external_access_context()
+    if external_context is not None and not external_access_allows("create", external_context):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="External credentials do not allow this action"
         )
+    settings = get_settings_service().settings
+    if not settings.allow_custom_components:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Custom component creation is disabled on this server."
+        )
+    if settings.custom_component_admin_only and not user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Custom component creation is restricted to administrators.",
+        )
+
+
+def _canvas_snapshot(flow) -> dict | None:
+    """A copy of the saved flow for the turn to read.
+
+    Taken before the request transaction is released: committing expires the ORM
+    object's attributes, and the turn runs long after that.
+    """
+    if flow is None or not flow.data:
+        return None
+    return {"name": flow.name, "data": copy.deepcopy(flow.data)}
 
 
 @router.post("/assist/stream", dependencies=[Depends(require_agentic_experience)])
@@ -398,7 +343,9 @@ async def assist_stream(
     current_user: CurrentActiveUser,
     session: DbSession,
 ) -> StreamingResponse:
-    """Chat with the Langflow Assistant with streaming progress updates."""
+    """Run one assistant turn (Component, Prompt, Ask or Test flow) with streaming progress."""
+    if request.mode == "component" and request.action is None:
+        _require_component_creation_allowed(current_user)
     flow = await _validate_flow_access(request.flow_id, current_user.id, session)
     with scoped_model_provider_policy_for_flow(
         flow,
@@ -406,6 +353,7 @@ async def assist_stream(
         is_superuser=bool(current_user.is_superuser),
     ):
         ctx = await _resolve_assistant_context(request, current_user.id, session)
+    canvas = _canvas_snapshot(flow)
 
     # Dependency teardown only runs after the SSE stream finishes, so without
     # this commit the request transaction (and its pooled connection) would
@@ -418,24 +366,18 @@ async def assist_stream(
             user_id=current_user.id,
             is_superuser=bool(current_user.is_superuser),
         ):
-            async for event in execute_flow_with_validation_streaming(
-                flow_filename=LANGFLOW_ASSISTANT_FLOW,
-                input_value=request.input_value or "",
-                global_variables=ctx.global_vars,
-                max_retries=ctx.max_retries,
+            async for event in stream_assistant_turn(
+                request,
+                canvas=canvas,
+                flow_id=request.flow_id,
                 user_id=str(current_user.id),
                 session_id=ctx.session_id,
                 provider=ctx.provider,
                 model_name=ctx.model_name,
                 api_key_var=ctx.api_key_name,
-                is_disconnected=http_request.is_disconnected,
+                global_variables=ctx.global_vars,
                 is_superuser=bool(current_user.is_superuser),
-                history_limit=request.history_limit,
-                iterations_limit=request.iterations_limit,
-                mode=request.mode,
-                action=request.action,
-                panel_auto_applies=bool(request.auto_apply),
-                ui_glossary=request.ui_glossary,
+                is_disconnected=http_request.is_disconnected,
             ):
                 yield event
 

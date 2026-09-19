@@ -92,3 +92,50 @@ async def test_genuinely_unknown_provider_is_still_rejected():
 
     assert exc_info.value.status_code == 400
     assert "Unknown provider" in str(exc_info.value.detail)
+
+
+async def test_credentialless_extension_provider_resolves_without_api_key_name():
+    with (
+        patch(
+            f"{_ROUTER}.get_enabled_providers_for_user",
+            new_callable=AsyncMock,
+            return_value=(["AmbientAuthCo"], {"AmbientAuthCo": True}),
+        ),
+        patch(f"{_ROUTER}.get_provider_secret_variable_key", return_value=None),
+        patch(f"{_ROUTER}.is_known_model_provider", return_value=True),
+        patch(f"{_ROUTER}.get_default_model", return_value="ambient-chat"),
+        patch(f"{_ROUTER}.get_all_variables_for_provider", return_value={}),
+        patch(f"{_ROUTER}.get_provider_required_variable_keys", return_value=[]),
+    ):
+        ctx = await _resolve_assistant_context(
+            _request(provider="AmbientAuthCo"),
+            uuid4(),
+            session=AsyncMock(),
+        )
+
+    assert ctx.provider == "AmbientAuthCo"
+    assert ctx.api_key_name is None
+    assert ctx.global_vars["MODEL_NAME"] == "ambient-chat"
+
+
+async def test_base_url_only_provider_does_not_inject_connection_config_as_api_key():
+    with (
+        patch(
+            f"{_ROUTER}.get_enabled_providers_for_user",
+            new_callable=AsyncMock,
+            return_value=(["LocalCo"], {"LocalCo": True}),
+        ),
+        patch(f"{_ROUTER}.get_provider_secret_variable_key", return_value=None),
+        patch(f"{_ROUTER}.is_known_model_provider", return_value=True),
+        patch(f"{_ROUTER}.get_default_model", return_value="local-chat"),
+        patch(f"{_ROUTER}.get_all_variables_for_provider", return_value={"LOCALCO_BASE_URL": "http://local"}),
+        patch(f"{_ROUTER}.get_provider_required_variable_keys", return_value=["LOCALCO_BASE_URL"]),
+    ):
+        ctx = await _resolve_assistant_context(
+            _request(provider="LocalCo"),
+            uuid4(),
+            session=AsyncMock(),
+        )
+
+    assert ctx.api_key_name is None
+    assert ctx.global_vars["LOCALCO_BASE_URL"] == "http://local"

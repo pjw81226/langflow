@@ -28,7 +28,10 @@ def test_the_prompt_states_the_contract_the_panel_relies_on():
     prompt = ASK_ASSISTANT_PROMPT
 
     assert "READ-ONLY" in prompt
-    assert "switch the panel to **Build**" in prompt
+    assert "**Component** tab" in prompt
+    assert "**Prompt** tab" in prompt
+    assert "**Test flow**" in prompt
+    assert "**Build**" not in prompt
     assert "Reply in the language of the user's latest message" in prompt
     assert "ALWAYS write search_docs queries as 3-8 English keywords" in prompt
     assert "Never invent a link" in prompt
