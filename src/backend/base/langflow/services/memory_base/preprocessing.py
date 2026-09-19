@@ -82,8 +82,8 @@ class PreprocessingResult:
 def _build_model_config(provider: str, model_name: str) -> list[dict]:
     """Build the ``model`` input value for ``LanguageModelComponent``.
 
-    Mirrors the helper in ``agentic.flows.translation_flow`` — promoted here so
-    the memory-base layer doesn't import from agentic flows.
+    Mirrors ``agentic.flows.model_config.build_model_config``, kept here so the
+    memory-base layer doesn't import from agentic flows.
     """
     param_mapping = get_provider_param_mapping(provider)
     metadata: dict = {

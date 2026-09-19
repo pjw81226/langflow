@@ -182,11 +182,11 @@ def test_upgrade_rewrites_seeded_rows_and_is_idempotent(migration):
 
 
 def test_upgrade_converges_packaged_flow_to_committed_fix(migration):
-    """A row seeded with the pre-fix LangflowAssistant snapshot converges to the shipped fix."""
+    """A row seeded with a pre-fix copy of a shipped Agent flow converges to the shipped fix."""
     import json
 
-    flows_dir = Path(langflow.__file__).parent / "agentic" / "flows"
-    fixed = json.loads((flows_dir / "LangflowAssistant.json").read_text())
+    starter_dir = Path(langflow.__file__).parent / "initial_setup" / "starter_projects"
+    fixed = json.loads((starter_dir / "Simple Agent.json").read_text())
     fixed_data = fixed["data"]
 
     # Reconstruct the pre-fix row by reversing the shipped rewrite on every Agent node.
@@ -200,10 +200,12 @@ def test_upgrade_converges_packaged_flow_to_committed_fix(migration):
         old_code = code.replace(migration._NEW_METHOD, migration._OLD_METHOD, 1)
         for old_imp, new_imp in migration._OLD_TO_NEW_IMPORT.items():
             old_code = old_code.replace(new_imp, old_imp, 1)
+        # Otherwise the seeded row would already be the fixed one and the test would pass vacuously.
+        assert old_code != code, "the shipped Agent code no longer contains the migration's fixed method"
         nd["node"]["template"]["code"]["value"] = old_code
         nd["node"]["metadata"]["code_hash"] = hashlib.sha256(old_code.encode()).hexdigest()[:12]
         reversed_any = True
-    assert reversed_any, "LangflowAssistant.json has no Agent node — test needs updating"
+    assert reversed_any, "Simple Agent.json has no Agent node — test needs updating"
 
     engine, flow = _make_flow_table()
     with engine.begin() as conn:

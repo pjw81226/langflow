@@ -246,23 +246,3 @@ class TestUseTemplateToolStartLabel:
         payload = json.loads(event.removeprefix("data: "))
 
         assert payload["label"] == "Applying a template"
-
-
-class TestTemplateToolsInToolkit:
-    async def test_toolkit_should_include_template_tools(self):
-        from langflow.agentic.flows.flow_builder_assistant import build_toolkit
-
-        tools = await build_toolkit()
-        names = {getattr(t, "name", None) for t in tools}
-
-        assert {"list_templates", "use_template"}.issubset(names), (
-            f"template tools must be in the toolkit, got: {sorted(n for n in names if n)}"
-        )
-
-    def test_prompt_should_document_use_template_with_a_clear_match_guard(self):
-        from langflow.agentic.flows.flow_builder_assistant import FLOW_BUILDER_PROMPT
-
-        assert "use_template" in FLOW_BUILDER_PROMPT
-        assert "list_templates" in FLOW_BUILDER_PROMPT
-        lower = FLOW_BUILDER_PROMPT.lower()
-        assert "clearly matches" in lower, "prompt must restrict use_template to clear template matches"

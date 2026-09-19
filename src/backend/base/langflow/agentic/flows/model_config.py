@@ -7,8 +7,8 @@ def build_model_config(provider: str, model_name: str) -> list[dict]:
     """Build model configuration for LanguageModelComponent.
 
     Resolves the ``model_class`` and param names from the CANONICAL provider
-    metadata (``get_provider_param_mapping`` — the same source TranslationFlow
-    and the central model registry use). A previous hardcoded ``MODEL_CLASSES``
+    metadata (``get_provider_param_mapping`` — the same source the central
+    model registry uses). A previous hardcoded ``MODEL_CLASSES``
     dict drifted from the registry and mapped Google Generative AI to
     ``ChatGoogleGenerativeAI`` while the registry only knows
     ``ChatGoogleGenerativeAIFixed`` — so any Gemini model died at first prompt

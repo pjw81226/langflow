@@ -5,10 +5,8 @@ failing test to flip:
 
   Issue 1 — GET /agentic/check-config returns providers:[] / default_*:null
             even though configured_providers is populated.
-  Issue 2 — POST /agentic/assist runs the LLM (HTTP 200) on an unknown or
-            cross-user flow_id instead of rejecting with 404/403.
-  Issue 3 — POST /agentic/execute/LangflowAssistant returns HTTP 500 for a
-            valid assistant flow file (missing provider/model context).
+  Issue 2 — POST /agentic/assist/stream runs the LLM (HTTP 200) on an unknown
+            or cross-user flow_id instead of rejecting with 404/403.
 
 The endpoint tests need at least one configured provider; OPENAI_API_KEY from
 the repo .env (loaded by conftest) enables OpenAI for every user, so they skip
@@ -61,7 +59,7 @@ async def test_check_config_providers_are_consistent_with_configured_providers(c
 async def test_assist_rejects_unknown_flow_id_before_invoking_the_model(client, logged_in_headers):
     """Issue 2: an unknown flow_id should be rejected, not silently run on empty context."""
     body = {"flow_id": "00000000-0000-0000-0000-000000000000", "input_value": "hi"}
-    response = await client.post("api/v1/agentic/assist", json=body, headers=logged_in_headers)
+    response = await client.post("api/v1/agentic/assist/stream", json=body, headers=logged_in_headers)
     assert response.status_code in (403, 404), response.text
 
 
@@ -82,7 +80,7 @@ async def test_assist_rejects_cross_user_flow_id(client, active_user, user_two_a
 
     try:
         body = {"flow_id": str(flow_id), "input_value": "what is on my canvas?"}
-        response = await client.post("api/v1/agentic/assist", json=body, headers={"x-api-key": user_two_api_key})
+        response = await client.post("api/v1/agentic/assist/stream", json=body, headers={"x-api-key": user_two_api_key})
         assert response.status_code in (403, 404), response.text
     finally:
         async with session_scope() as session:
@@ -90,12 +88,3 @@ async def test_assist_rejects_cross_user_flow_id(client, active_user, user_two_a
             if stored:
                 await session.delete(stored)
                 await session.commit()
-
-
-@pytest.mark.api_key_required
-@_NEEDS_KEY
-async def test_execute_named_assistant_flow_is_graceful_not_500(client, logged_in_headers):
-    """Issue 3: executing the built-in assistant flow must not 500."""
-    body = {"flow_id": str(uuid4()), "input_value": "In one short sentence, what is Langflow?"}
-    response = await client.post("api/v1/agentic/execute/LangflowAssistant", json=body, headers=logged_in_headers)
-    assert response.status_code != 500, response.text

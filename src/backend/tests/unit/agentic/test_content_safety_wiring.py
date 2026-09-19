@@ -5,9 +5,6 @@ point the assistant can carry abusive text -- what the user sends, what the mode
 and the component code the assistant writes into the user's flow.
 """
 
-import json
-from pathlib import Path
-
 from langflow.agentic.helpers.code_security import scan_code_security
 from langflow.agentic.helpers.content_safety import REFUSAL_MESSAGE as CONTENT_REFUSAL
 from langflow.agentic.helpers.input_sanitization import REFUSAL_MESSAGE as INJECTION_REFUSAL
@@ -83,22 +80,3 @@ class TestGeneratedCodeIsGuarded:
 
         assert result.is_safe is False
         assert any("exec" in v for v in result.violations)
-
-
-class TestSystemPromptCarriesThePolicy:
-    def test_should_state_the_content_policy(self):
-        flow = json.loads(
-            Path("src/backend/base/langflow/agentic/flows/LangflowAssistant.json").read_text(encoding="utf-8")
-        )
-        prompts = [
-            field["value"]
-            for node in flow["data"]["nodes"]
-            for field in node.get("data", {}).get("node", {}).get("template", {}).values()
-            if isinstance(field, dict) and isinstance(field.get("value"), str) and "# Role" in field["value"]
-        ]
-
-        assert len(prompts) == 1
-        policy = prompts[0]
-        assert "# Content policy" in policy
-        assert "protected attributes" in policy
-        assert "moderation tooling IS allowed" in policy, "must not scare the model off legitimate moderation work"
