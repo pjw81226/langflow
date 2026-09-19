@@ -93,12 +93,12 @@ Langflow 문서에 라벨로 나오는 제품 개념어와, 정착된 한국어�
 | Can view / Can edit / Can run | 보기 가능 / 편집 가능 / 실행 가능 | Viewer / Editor | 보기 권한 / 편집 권한 |
 | Human in the Loop | Human in the Loop (제목), 본문에서는 `사람의 확인` | human input | 사람의 입력 |
 | traceback, Python, import | 영어 그대로 | Model Component | 영어 그대로 |
-| Build / Ask (Assistant 모드) | 만들기 / 질문하기 | dock / float (Assistant 패널) | 옆에 고정 / 캔버스 위에 띄우기 |
-| Accept / Dismiss (Assistant의 제안 카드) | 적용 / 거절 | auto-apply, skip-all (모드 이름) | 자동 적용. 명령어 `/skip-all`은 그대로 둔다 |
-| Test flow / Test again / Fix it | Flow 테스트 / 다시 테스트 / 고치기 | needs your input to run | 값을 넣어야 실행됩니다 |
-| iteration budget | 단계 한도 | history limit | 기록 한도 |
+| Component / Prompt / Ask (Assistant 탭) | Component / Prompt / 질문하기 | dock / float (Assistant 패널) | 옆에 고정 / 캔버스 위에 띄우기 |
+| Apply / Undo / Copy (Prompt 제안 카드) | 적용 / 되돌리기 / 복사 | Apply to (Prompt 탭) | 적용 대상 |
+| Test flow / Test again | Flow 테스트 / 다시 테스트 | needs your input to run | 값을 넣어야 실행됩니다 |
 
-Assistant 카드의 짧은 상태 표시는 `~됨`으로 쓴다(`적용됨`, `거절됨`, `취소됨`, `캔버스에 추가됨`).
+Assistant 카드의 짧은 상태 표시는 `~됨`으로 쓴다(`적용됨`, `복사됨`, `취소됨`).
+Prompt 카드의 Undo는 적용하기 전의 글로 되돌리는 버튼이라 편집기의 `실행 취소`가 아니라 `되돌리기`로 쓴다.
 끝난 작업을 한 줄씩 나열할 때는 `~ 완료`로 쓴다(`{{name}} 추가 완료`).
 
 사이드바의 분류 이름은 일반 낱말은 한국어로, 제품 용어는 영어로 쓴다.
