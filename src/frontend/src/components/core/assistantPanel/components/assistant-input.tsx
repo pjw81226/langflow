@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
-import { getAssistantPlaceholder } from "../assistant-panel.constants";
+import { getAssistantPlaceholderKey } from "../assistant-panel.constants";
 import type { AssistantModel } from "../assistant-panel.types";
 import { getRandomPlaceholderMessage } from "../helpers/messages";
 import { useAssistantSelectedModel } from "../hooks/use-assistant-selected-model";
@@ -115,7 +115,8 @@ export function AssistantInput({
     (state) => state.assistantMaxMessageLength,
   );
   const [message, setMessage] = useState(draftMessage);
-  const [idlePlaceholder] = useState(getAssistantPlaceholder);
+  // Hold the key and translate on render so the text follows the active language.
+  const [idlePlaceholderKey] = useState(getAssistantPlaceholderKey);
 
   // Show animated placeholder only during post-generation steps (when thinking animation is done)
   const isPostGenerationStep =
@@ -288,7 +289,7 @@ export function AssistantInput({
                     t("assistant.workingOnIt")
                 : isRefiningPlan
                   ? REFINING_PLAN_PLACEHOLDER
-                  : (placeholder ?? idlePlaceholder)
+                  : (placeholder ?? t(idlePlaceholderKey))
             }
             disabled={disabled || isProcessing}
             className={cn(

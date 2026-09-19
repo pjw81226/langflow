@@ -30,7 +30,8 @@ jest.mock("../../helpers/messages", () => ({
 }));
 
 jest.mock("../../assistant-panel.constants", () => ({
-  getAssistantPlaceholder: () => "Ask me anything about Langflow...",
+  // Resolves to "Ask me anything about Langflow..." through the en.json mock.
+  getAssistantPlaceholderKey: () => "assistant.placeholder.4",
 }));
 
 describe("AssistantInput", () => {

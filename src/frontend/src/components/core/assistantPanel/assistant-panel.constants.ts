@@ -6,22 +6,25 @@ export const ASSISTANT_TITLE = "Langflow Assistant";
 export const ASSISTANT_SESSION_STORAGE_KEY_PREFIX =
   "langflow-assistant-session-";
 
-const ASSISTANT_PLACEHOLDER_KEYS = [
+export const ASSISTANT_PLACEHOLDER_KEYS = [
   "assistant.placeholder.0",
   "assistant.placeholder.1",
   "assistant.placeholder.2",
   "assistant.placeholder.3",
   "assistant.placeholder.4",
-];
+] as const;
 
-export const ASSISTANT_PLACEHOLDERS: string[] = ASSISTANT_PLACEHOLDER_KEYS.map(
-  (key) => i18n.t(key),
-);
+// Keys, not translated strings: this module is imported before the saved
+// language bundle finishes loading (see index.tsx), so translating here would
+// pin every placeholder to the English fallback.
+export function getAssistantPlaceholderKey(): string {
+  return ASSISTANT_PLACEHOLDER_KEYS[
+    Math.floor(Math.random() * ASSISTANT_PLACEHOLDER_KEYS.length)
+  ];
+}
 
 export function getAssistantPlaceholder(): string {
-  return ASSISTANT_PLACEHOLDERS[
-    Math.floor(Math.random() * ASSISTANT_PLACEHOLDERS.length)
-  ];
+  return i18n.t(getAssistantPlaceholderKey());
 }
 
 export const ASSISTANT_SESSIONS_STORAGE_KEY = "langflow-assistant-sessions";
