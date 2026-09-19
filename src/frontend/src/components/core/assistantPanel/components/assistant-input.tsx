@@ -29,14 +29,14 @@ const GENERATING_STEPS: AgenticStepType[] = [
 ];
 
 // Intent-specific placeholder per generating step (no random rotation while
-// the LLM produces a component or flow).
-const GENERATING_PLACEHOLDER: Partial<Record<AgenticStepType, string>> = {
-  generating: "Generating response...",
-  generating_component: "Generating component...",
-  generating_plan: "Generating plan...",
-  generating_flow: "Generating flow...",
-  orchestrating: "Orchestrating...",
-  generating_document: "Generating document...",
+// the LLM produces a component or flow). Keys, translated on render.
+const GENERATING_PLACEHOLDER_KEY: Partial<Record<AgenticStepType, string>> = {
+  generating: "assistant.generating.response",
+  generating_component: "assistant.generating.component",
+  generating_plan: "assistant.generating.plan",
+  generating_flow: "assistant.generating.flow",
+  orchestrating: "assistant.generating.orchestrating",
+  generating_document: "assistant.generating.document",
 };
 
 // Hook for rotating placeholder messages during post-generation processing
@@ -91,8 +91,6 @@ interface AssistantInputProps {
    * room for the upward-opening list in the compact (no-messages) layout. */
   onMentionOpenChange?: (open: boolean) => void;
 }
-
-const REFINING_PLAN_PLACEHOLDER = "Tell me what to change…";
 
 export function AssistantInput({
   onSend,
@@ -285,10 +283,13 @@ export function AssistantInput({
               isProcessing
                 ? isPostGenerationStep
                   ? ""
-                  : (currentStep && GENERATING_PLACEHOLDER[currentStep]) ||
-                    t("assistant.workingOnIt")
+                  : t(
+                      (currentStep &&
+                        GENERATING_PLACEHOLDER_KEY[currentStep]) ||
+                        "assistant.workingOnIt",
+                    )
                 : isRefiningPlan
-                  ? REFINING_PLAN_PLACEHOLDER
+                  ? t("assistant.refiningPlanPlaceholder")
                   : (placeholder ?? t(idlePlaceholderKey))
             }
             disabled={disabled || isProcessing}

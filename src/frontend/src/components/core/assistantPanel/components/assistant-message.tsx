@@ -133,7 +133,7 @@ export function AssistantMessageItem({
   }
   const thinkingMessage =
     message.progress?.step === "generating_document"
-      ? message.progress.message || "Generating document..."
+      ? message.progress.message || t("assistant.generating.document")
       : randomThinking;
 
   // True when the rich loading state (component or flow build) should render

@@ -21,6 +21,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { WrittenFile } from "../assistant-panel.types";
 import { GHOST_SECONDARY_BUTTON } from "../helpers/button-styles";
@@ -42,6 +43,7 @@ function formatSize(bytes: number): string {
 }
 
 export function AssistantFileCard({ file, onOpen }: AssistantFileCardProps) {
+  const { t } = useTranslation();
   const handleDownload = useCallback(() => {
     // Content arrived inline with the SSE event — build the Blob from the
     // in-memory string. No HTTP fetch, no auth concerns, no path-resolution
@@ -86,8 +88,12 @@ export function AssistantFileCard({ file, onOpen }: AssistantFileCardProps) {
           {basename(file.path)}
         </span>
         <span className="text-xs text-muted-foreground">
-          {file.action === "edit_file" ? "edited" : "created"} ·{" "}
-          {formatSize(file.size)}
+          {t(
+            file.action === "edit_file"
+              ? "assistant.fileCard.edited"
+              : "assistant.fileCard.created",
+            { size: formatSize(file.size) },
+          )}
         </span>
       </div>
       <div className="flex items-center gap-1">
@@ -98,7 +104,7 @@ export function AssistantFileCard({ file, onOpen }: AssistantFileCardProps) {
           className={GHOST_SECONDARY_BUTTON}
         >
           <ExternalLink className="h-3.5 w-3.5" />
-          <span>Open</span>
+          <span>{t("assistant.fileCard.open")}</span>
         </button>
         <button
           type="button"
@@ -107,7 +113,7 @@ export function AssistantFileCard({ file, onOpen }: AssistantFileCardProps) {
           className={GHOST_SECONDARY_BUTTON}
         >
           <DownloadIcon className="h-3.5 w-3.5" />
-          <span>Download</span>
+          <span>{t("assistant.fileCard.download")}</span>
         </button>
       </div>
     </div>
