@@ -5,6 +5,8 @@ import type { AssistantMessage } from "../assistant-panel.types";
 let mockIsProcessing = false;
 let mockMessages: AssistantMessage[] = [];
 const mockSetAssistantProcessing = jest.fn();
+const mockSetAssistantDocked = jest.fn();
+let mockDockDefault = false;
 
 jest.mock("@/components/ui/sidebar", () => ({
   useSidebar: () => ({ open: false }),
@@ -17,8 +19,15 @@ jest.mock("@/contexts/permissionsContext", () => ({
 jest.mock("@/stores/assistantManagerStore", () => ({
   __esModule: true,
   default: (
-    selector: (state: { setAssistantProcessing: jest.Mock }) => unknown,
-  ) => selector({ setAssistantProcessing: mockSetAssistantProcessing }),
+    selector: (state: {
+      setAssistantProcessing: jest.Mock;
+      setAssistantDocked: jest.Mock;
+    }) => unknown,
+  ) =>
+    selector({
+      setAssistantProcessing: mockSetAssistantProcessing,
+      setAssistantDocked: mockSetAssistantDocked,
+    }),
 }));
 
 jest.mock("@/stores/flowBuilderWelcomeStore", () => ({
@@ -39,8 +48,15 @@ jest.mock("@/stores/flowStore", () => ({
 
 jest.mock("@/stores/utilityStore", () => ({
   useUtilityStore: (
-    selector: (state: { agenticExperienceEnabled: boolean }) => unknown,
-  ) => selector({ agenticExperienceEnabled: true }),
+    selector: (state: {
+      agenticExperienceEnabled: boolean;
+      assistantDockDefault: boolean;
+    }) => unknown,
+  ) =>
+    selector({
+      agenticExperienceEnabled: true,
+      assistantDockDefault: mockDockDefault,
+    }),
 }));
 
 jest.mock("use-stick-to-bottom", () => {
@@ -138,8 +154,15 @@ function streamingReply(mode?: "build" | "ask"): AssistantMessage[] {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  localStorage.clear();
   mockIsProcessing = false;
   mockMessages = [];
+  mockDockDefault = false;
+  // The dock is only offered on a wide viewport.
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 1440,
+  });
 });
 
 describe("AssistantPanel canvas lock", () => {
@@ -212,5 +235,98 @@ describe("AssistantPanel outside click", () => {
     fireEvent.pointerDown(getByTestId("assistant-panel"));
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("AssistantPanel docked layout", () => {
+  it("should_float_by_default", () => {
+    const { getByTestId } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    expect(getByTestId("assistant-panel")).toHaveAttribute(
+      "data-docked",
+      "false",
+    );
+    expect(mockSetAssistantDocked).toHaveBeenLastCalledWith(false);
+  });
+
+  it("should_dock_when_the_user_chose_to", () => {
+    localStorage.setItem("langflow-assistant-docked", "true");
+
+    const { getByTestId } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    const panel = getByTestId("assistant-panel");
+    expect(panel).toHaveAttribute("data-docked", "true");
+    // Part of the page layout, not an overlay.
+    expect(panel.className).not.toContain("fixed");
+    expect(mockSetAssistantDocked).toHaveBeenLastCalledWith(true);
+  });
+
+  it("should_dock_by_deployment_default_until_the_user_chooses", () => {
+    mockDockDefault = true;
+
+    const { getByTestId } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    expect(getByTestId("assistant-panel")).toHaveAttribute(
+      "data-docked",
+      "true",
+    );
+  });
+
+  it("should_let_the_users_choice_override_the_deployment_default", () => {
+    mockDockDefault = true;
+    localStorage.setItem("langflow-assistant-docked", "false");
+
+    const { getByTestId } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    expect(getByTestId("assistant-panel")).toHaveAttribute(
+      "data-docked",
+      "false",
+    );
+  });
+
+  it("should_stay_open_when_the_canvas_is_clicked_while_docked", () => {
+    localStorage.setItem("langflow-assistant-docked", "true");
+    const onClose = jest.fn();
+    render(<AssistantPanel isOpen onClose={onClose} />);
+
+    fireEvent.pointerDown(document.body);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("should_not_dock_on_a_narrow_viewport", () => {
+    localStorage.setItem("langflow-assistant-docked", "true");
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 900,
+    });
+
+    const { getByTestId } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    expect(getByTestId("assistant-panel")).toHaveAttribute(
+      "data-docked",
+      "false",
+    );
+  });
+
+  it("should_offer_a_single_width_handle_while_docked", () => {
+    localStorage.setItem("langflow-assistant-docked", "true");
+
+    const { getByTestId, container } = render(
+      <AssistantPanel isOpen onClose={jest.fn()} />,
+    );
+
+    expect(getByTestId("assistant-dock-resize-handle")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-resize-handle]")).toHaveLength(1);
   });
 });

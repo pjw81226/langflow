@@ -705,8 +705,10 @@ export function useAssistantChat(
         reverted: false,
       }));
 
-      // Minimize the panel so the just-accepted canvas is immediately visible.
-      useAssistantManagerStore.getState().setAssistantSidebarOpen(false);
+      // Minimize a floating panel so the just-accepted canvas is immediately
+      // visible. A docked panel covers nothing, so it stays.
+      const manager = useAssistantManagerStore.getState();
+      if (!manager.assistantDocked) manager.setAssistantSidebarOpen(false);
 
       // Back to ``pending`` after 3s (legacy "Add to Flow" pattern) so the
       // user can re-apply the same proposal after editing the canvas.

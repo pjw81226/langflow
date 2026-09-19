@@ -17,6 +17,11 @@ interface AssistantHeaderProps {
   isExpanded: boolean;
   /** Mirrors the hook's skipAll preference. Renders an inline badge cue. */
   skipAll?: boolean;
+  /** The panel is docked beside the canvas instead of floating over it. */
+  isDocked?: boolean;
+  /** False on narrow viewports, where the dock toggle is not offered. */
+  canDock?: boolean;
+  onToggleDock?: () => void;
 }
 
 export function AssistantHeader({
@@ -29,6 +34,9 @@ export function AssistantHeader({
   onDeleteSession,
   isExpanded,
   skipAll = false,
+  isDocked = false,
+  canDock = false,
+  onToggleDock,
 }: AssistantHeaderProps) {
   const { t } = useTranslation();
   const isAtSessionLimit = sessions.length >= ASSISTANT_MAX_SESSIONS;
@@ -90,6 +98,49 @@ export function AssistantHeader({
           onDeleteSession={onDeleteSession}
           isExpanded={isExpanded}
         />
+
+        {canDock && onToggleDock && (
+          <ShadTooltip
+            content={
+              isDocked ? t("assistant.dock.undock") : t("assistant.dock.dock")
+            }
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="assistant-dock-toggle"
+              aria-label={
+                isDocked ? t("assistant.dock.undock") : t("assistant.dock.dock")
+              }
+              aria-pressed={isDocked}
+              className="h-8 w-8 px-0 text-muted-foreground hover:text-foreground"
+              onClick={onToggleDock}
+            >
+              <ForwardedIconComponent
+                name={isDocked ? "PictureInPicture2" : "PanelRight"}
+                className="h-4 w-4"
+              />
+            </Button>
+          </ShadTooltip>
+        )}
+
+        {/* A floating panel closes on an outside click. A docked one does not,
+            so it needs a button of its own. */}
+        {isDocked && (
+          <ShadTooltip content={t("assistant.close")} side="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="assistant-close"
+              aria-label={t("assistant.close")}
+              className="h-8 w-8 px-0 text-muted-foreground hover:text-foreground"
+              onClick={onClose}
+            >
+              <ForwardedIconComponent name="X" className="h-4 w-4" />
+            </Button>
+          </ShadTooltip>
+        )}
       </div>
     </div>
   );

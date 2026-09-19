@@ -34,8 +34,15 @@ jest.mock("@/contexts/permissionsContext", () => ({
 jest.mock("@/stores/assistantManagerStore", () => ({
   __esModule: true,
   default: (
-    selector: (state: { setAssistantProcessing: jest.Mock }) => unknown,
-  ) => selector({ setAssistantProcessing: mockSetAssistantProcessing }),
+    selector: (state: {
+      setAssistantProcessing: jest.Mock;
+      setAssistantDocked: jest.Mock;
+    }) => unknown,
+  ) =>
+    selector({
+      setAssistantProcessing: mockSetAssistantProcessing,
+      setAssistantDocked: jest.fn(),
+    }),
 }));
 
 jest.mock("@/stores/flowBuilderWelcomeStore", () => ({
@@ -60,8 +67,12 @@ jest.mock("@/stores/flowStore", () => ({
 
 jest.mock("@/stores/utilityStore", () => ({
   useUtilityStore: (
-    selector: (state: { agenticExperienceEnabled: boolean }) => unknown,
-  ) => selector({ agenticExperienceEnabled: true }),
+    selector: (state: {
+      agenticExperienceEnabled: boolean;
+      assistantDockDefault: boolean;
+    }) => unknown,
+  ) =>
+    selector({ agenticExperienceEnabled: true, assistantDockDefault: false }),
 }));
 
 jest.mock("use-stick-to-bottom", () => {

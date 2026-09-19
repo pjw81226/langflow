@@ -228,6 +228,9 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
   const setAssistantOpen = useAssistantManagerStore(
     (state) => state.setAssistantSidebarOpen,
   );
+  const assistantDocked = useAssistantManagerStore(
+    (state) => state.assistantDocked,
+  );
 
   // Toggle assistant with configurable shortcut (only when not typing in an input)
   const aiAssistantShortcut = useShortcutsStore((state) => state.aiAssistant);
@@ -241,16 +244,17 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
     [assistantOpen, aiAssistantShortcut],
   );
 
-  // Close assistant with Escape
+  // Close assistant with Escape. A docked panel is part of the layout, not an
+  // overlay: Escape there belongs to whatever the user is doing on the canvas.
   useHotkeys(
     "escape",
     () => {
-      if (assistantOpen) setAssistantOpen(false);
+      if (assistantOpen && !assistantDocked) setAssistantOpen(false);
     },
     {
       enableOnFormTags: true,
     },
-    [assistantOpen],
+    [assistantOpen, assistantDocked],
   );
 
   // Auto-close playground when all chat components are removed
@@ -306,14 +310,6 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
                   defaultOpen={!isMobile}
                   segmentedSidebar={ENABLE_NEW_SIDEBAR}
                 >
-                  {/* Assistant Panel — single instance, mounted INSIDE the
-                    SidebarProvider so it can read sidebar open state via
-                    ``useSidebar`` and shift its horizontal position when the
-                    sidebar slides off-canvas. */}
-                  <AssistantPanel
-                    isOpen={assistantOpen}
-                    onClose={() => setAssistantOpen(false)}
-                  />
                   <FlowSearchProvider>
                     {/* FlowSidebarComponent - stays in place. Wrapped in a
                       ``display: none`` container while the welcome is open
@@ -347,6 +343,17 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
                       </div>
                     </main>
                   </FlowSearchProvider>
+                  {/* Assistant Panel — single instance, mounted INSIDE the
+                    SidebarProvider so it can read sidebar open state via
+                    ``useSidebar`` and shift its horizontal position when the
+                    sidebar slides off-canvas. It comes AFTER <main> because,
+                    docked, it is a flex item of this row: the canvas shrinks
+                    to make room instead of being covered. Floating, it is
+                    ``fixed`` and its place in the row does not matter. */}
+                  <AssistantPanel
+                    isOpen={assistantOpen}
+                    onClose={() => setAssistantOpen(false)}
+                  />
                 </SidebarProvider>
               </div>
               <SimpleSidebar resizable={!isFullscreen} className="h-full">

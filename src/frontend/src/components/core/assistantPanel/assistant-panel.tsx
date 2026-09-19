@@ -19,7 +19,8 @@ import { AssistantInput } from "./components/assistant-input";
 import { AssistantMessageItem } from "./components/assistant-message";
 import { AssistantNoModelsState } from "./components/assistant-no-models-state";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
-// Direct path: tests mock the ./hooks barrel wholesale.
+// Direct paths: tests mock the ./hooks barrel wholesale.
+import { useAssistantDock } from "./hooks/use-assistant-dock";
 import { useAssistantMode } from "./hooks/use-assistant-mode";
 
 // Module-level draft cache — survives panel unmount/remount
@@ -106,6 +107,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const currentFlowId = useFlowStore((state) => state.currentFlow?.id);
   const isReadOnly = useIsFlowReadOnly(currentFlowId);
   const [mode, setMode] = useAssistantMode();
+  const { isDocked, canDock, toggleDock, dockWidth, handleDockResize } =
+    useAssistantDock();
   // The expanded sidebar offsets the canvas 280px, so the panel shifts right
   // by half that (140px) to stay centered on the canvas.
   const isSidebarOpen = useSidebar().open;
@@ -143,7 +146,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   } = useAssistantChat({ canUseModel: canSendWithModel });
 
   useEffect(() => {
-    if (!isOpen) return;
+    // Docked, the panel sits beside the canvas: working on the canvas is the
+    // point, not a reason to close it.
+    if (!isOpen || isDocked) return;
 
     const handleClickOutside = (e: PointerEvent) => {
       // A running turn locks the canvas and disables the toggle button, so a
@@ -177,7 +182,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     document.addEventListener("pointerdown", handleClickOutside, true);
     return () =>
       document.removeEventListener("pointerdown", handleClickOutside, true);
-  }, [isOpen, isProcessing, onClose]);
+  }, [isOpen, isDocked, isProcessing, onClose]);
   const handleAuthorizedSend = useCallback(
     (
       content: string,
@@ -287,7 +292,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const handleApproveAndClose = (messageId: string, componentCode?: string) => {
     if (isReadOnly) return;
     handleApprove(messageId, componentCode);
-    onClose();
+    // A floating panel covers the canvas, so it gets out of the way to reveal
+    // the new component. A docked one covers nothing.
+    if (!isDocked) onClose();
   };
 
   const hasMessages = messages.length > 0;
@@ -310,7 +317,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
 
   // A grab in the empty state flips the panel to panelSize-driven dimensions
   // instead of auto-fitting to the input height.
-  const useExpandedSize = hasMessages || hasExpandedOnce || hasUserResized;
+  // Docked is always full height: there is no compact form to grow out of.
+  const useExpandedSize =
+    isDocked || hasMessages || hasExpandedOnce || hasUserResized;
   const [panelSize, setPanelSize] = useState(getStoredSize);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
@@ -402,42 +411,54 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
 
   if (!isOpen || isReadOnly) return null;
 
-  const containerClasses = cn(
-    "flex flex-col transition-[opacity,transform] duration-200 fixed shadow-xl will-change-[opacity,transform]",
-    "z-50 bottom-16 -translate-x-1/2 rounded-2xl border border-border",
-    isSidebarOpen ? "left-[calc(50%+140px)]" : "left-1/2",
-    "opacity-100 translate-y-0 max-w-[calc(100vw-2rem)]",
-  );
+  const containerClasses = isDocked
+    ? // In the page's flex row, after <main>: the canvas shrinks to make room
+      // instead of being covered.
+      "relative z-10 flex h-full shrink-0 flex-col border-l border-border bg-background"
+    : cn(
+        "flex flex-col transition-[opacity,transform] duration-200 fixed shadow-xl will-change-[opacity,transform]",
+        "z-50 bottom-16 -translate-x-1/2 rounded-2xl border border-border",
+        isSidebarOpen ? "left-[calc(50%+140px)]" : "left-1/2",
+        "opacity-100 translate-y-0 max-w-[calc(100vw-2rem)]",
+      );
 
   // Welcome-submit opens enforce a 300px floor — compact mode's ~200px is too
   // short for the auto-sent message + reply to be visible.
   const pendingMinHeight = openedWithPending ? "18.75rem" : undefined;
 
-  const containerStyle = useExpandedSize
-    ? {
-        width: panelSize.width,
-        height: panelSize.height,
-        minWidth: "28.5rem",
-        minHeight: pendingMinHeight,
-      }
-    : {
-        width: panelSize.width,
-        minWidth: "28.5rem",
-        // Definite height (not just min-height) so the inner ``h-full`` column
-        // can bottom-anchor the input, leaving room for the upward popover.
-        ...(isMentionOpen
-          ? { height: MENTION_PANEL_HEIGHT }
-          : { minHeight: pendingMinHeight }),
-      };
+  const containerStyle = isDocked
+    ? { width: dockWidth, minWidth: "28.5rem", maxWidth: "50vw" }
+    : useExpandedSize
+      ? {
+          width: panelSize.width,
+          height: panelSize.height,
+          minWidth: "28.5rem",
+          minHeight: pendingMinHeight,
+        }
+      : {
+          width: panelSize.width,
+          minWidth: "28.5rem",
+          // Definite height (not just min-height) so the inner ``h-full`` column
+          // can bottom-anchor the input, leaving room for the upward popover.
+          ...(isMentionOpen
+            ? { height: MENTION_PANEL_HEIGHT }
+            : { minHeight: pendingMinHeight }),
+        };
 
   return (
     <div
       ref={panelRef}
       data-testid="assistant-panel"
+      data-docked={isDocked ? "true" : "false"}
       className={containerClasses}
       style={containerStyle}
     >
-      <div className="absolute inset-0 rounded-2xl bg-background" />
+      <div
+        className={cn(
+          "absolute inset-0 bg-background",
+          !isDocked && "rounded-2xl",
+        )}
+      />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden">
         <AssistantHeader
@@ -450,6 +471,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
           onDeleteSession={deleteSession}
           isExpanded={useExpandedSize}
           skipAll={skipAll}
+          isDocked={isDocked}
+          canDock={canDock}
+          onToggleDock={toggleDock}
         />
         {!agenticExperienceEnabled ? (
           <AssistantDisabledState />
@@ -526,43 +550,54 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
         )}
       </div>
 
-      {/* Edge resize handles — invisible hitboxes with hover highlight.
-          Always rendered: the empty state needs them too so the user can
-          widen the panel before sending the first message. First drag flips
-          hasUserResized → panel transitions from auto-height to
-          panelSize-driven dimensions. */}
-      <>
-        {/* Left edge */}
+      {isDocked ? (
+        // Docked: the width is the only free dimension, dragged from the edge
+        // that faces the canvas.
         <div
           data-resize-handle
-          className="absolute top-3 bottom-3 -left-[5px] z-30 w-[10px] cursor-ew-resize rounded-full transition-colors hover:bg-primary/20"
-          onMouseDown={(e) => handleEdgeResize(e, { x: "left" })}
+          data-testid="assistant-dock-resize-handle"
+          className="absolute top-0 bottom-0 -left-[5px] z-30 w-[10px] cursor-ew-resize transition-colors hover:bg-primary/20"
+          onMouseDown={handleDockResize}
         />
-        {/* Right edge */}
-        <div
-          data-resize-handle
-          className="absolute top-3 bottom-3 -right-[5px] z-30 w-[10px] cursor-ew-resize rounded-full transition-colors hover:bg-primary/20"
-          onMouseDown={(e) => handleEdgeResize(e, { x: "right" })}
-        />
-        {/* Top edge */}
-        <div
-          data-resize-handle
-          className="absolute -top-[5px] right-3 left-3 z-30 h-[10px] cursor-ns-resize rounded-full transition-colors hover:bg-primary/20"
-          onMouseDown={(e) => handleEdgeResize(e, { y: "top" })}
-        />
-        {/* Top-left corner */}
-        <div
-          data-resize-handle
-          className="absolute -top-[5px] -left-[5px] z-30 h-[14px] w-[14px] cursor-nw-resize rounded-full transition-colors hover:bg-primary/30"
-          onMouseDown={(e) => handleEdgeResize(e, { x: "left", y: "top" })}
-        />
-        {/* Top-right corner */}
-        <div
-          data-resize-handle
-          className="absolute -top-[5px] -right-[5px] z-30 h-[14px] w-[14px] cursor-ne-resize rounded-full transition-colors hover:bg-primary/30"
-          onMouseDown={(e) => handleEdgeResize(e, { x: "right", y: "top" })}
-        />
-      </>
+      ) : (
+        <>
+          {/* Edge resize handles — invisible hitboxes with hover highlight.
+              Always rendered: the empty state needs them too so the user can
+              widen the panel before sending the first message. First drag flips
+              hasUserResized → panel transitions from auto-height to
+              panelSize-driven dimensions. */}
+          {/* Left edge */}
+          <div
+            data-resize-handle
+            className="absolute top-3 bottom-3 -left-[5px] z-30 w-[10px] cursor-ew-resize rounded-full transition-colors hover:bg-primary/20"
+            onMouseDown={(e) => handleEdgeResize(e, { x: "left" })}
+          />
+          {/* Right edge */}
+          <div
+            data-resize-handle
+            className="absolute top-3 bottom-3 -right-[5px] z-30 w-[10px] cursor-ew-resize rounded-full transition-colors hover:bg-primary/20"
+            onMouseDown={(e) => handleEdgeResize(e, { x: "right" })}
+          />
+          {/* Top edge */}
+          <div
+            data-resize-handle
+            className="absolute -top-[5px] right-3 left-3 z-30 h-[10px] cursor-ns-resize rounded-full transition-colors hover:bg-primary/20"
+            onMouseDown={(e) => handleEdgeResize(e, { y: "top" })}
+          />
+          {/* Top-left corner */}
+          <div
+            data-resize-handle
+            className="absolute -top-[5px] -left-[5px] z-30 h-[14px] w-[14px] cursor-nw-resize rounded-full transition-colors hover:bg-primary/30"
+            onMouseDown={(e) => handleEdgeResize(e, { x: "left", y: "top" })}
+          />
+          {/* Top-right corner */}
+          <div
+            data-resize-handle
+            className="absolute -top-[5px] -right-[5px] z-30 h-[14px] w-[14px] cursor-ne-resize rounded-full transition-colors hover:bg-primary/30"
+            onMouseDown={(e) => handleEdgeResize(e, { x: "right", y: "top" })}
+          />
+        </>
+      )}
     </div>
   );
 }

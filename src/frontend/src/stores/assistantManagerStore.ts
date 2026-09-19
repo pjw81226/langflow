@@ -64,6 +64,10 @@ const useAssistantManagerStore = create<AssistantManagerStoreType>(
     setAssistantProcessing: (isAssistantProcessing: boolean) => {
       set({ isAssistantProcessing });
     },
+    assistantDocked: false,
+    setAssistantDocked: (assistantDocked: boolean) => {
+      set({ assistantDocked });
+    },
     takeSnapshot: () => {
       const currentFlowId = get().currentFlowId;
       // push the current graph to the past state

@@ -28,6 +28,10 @@ export type AssistantManagerStoreType = {
   setAssistantSidebarOpen: (AssistantSideBarOpen: boolean) => void;
   isAssistantProcessing: boolean;
   setAssistantProcessing: (processing: boolean) => void;
+  /** The panel is docked beside the canvas, so "get it out of the way" actions
+   * (Escape, minimize after applying a flow) must leave it open. */
+  assistantDocked: boolean;
+  setAssistantDocked: (docked: boolean) => void;
 
   // Chat state
   examples: Array<FlowType>;

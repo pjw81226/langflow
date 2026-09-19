@@ -191,8 +191,9 @@ export function AssistantFlowPreview({
       { x: 100, y: 100 },
     );
     // Same reveal rule as the gated apply path: once the flow lands on the canvas,
-    // get the panel out of the way so the user can see it.
-    useAssistantManagerStore.getState().setAssistantSidebarOpen(false);
+    // get a floating panel out of the way so the user can see it.
+    const manager = useAssistantManagerStore.getState();
+    if (!manager.assistantDocked) manager.setAssistantSidebarOpen(false);
     setShowApproved(true);
     setTimeout(() => setShowApproved(false), APPROVED_DISPLAY_DURATION_MS);
   }, [flowPreview.flow, paste]);
