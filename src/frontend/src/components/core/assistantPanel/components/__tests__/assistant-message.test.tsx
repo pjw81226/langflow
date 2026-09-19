@@ -199,6 +199,46 @@ describe("AssistantMessageItem", () => {
         "Create a RAG pipeline",
       );
     });
+
+    it.each([
+      ["component", "Component"],
+      ["prompt", "Prompt"],
+      ["ask", "Ask"],
+    ] as const)("should_tag_a_%s_turn_with_its_mode", (mode, label) => {
+      render(
+        <AssistantMessageItem
+          message={createMessage({ role: "user", content: "hi", mode })}
+        />,
+      );
+
+      const chip = screen.getByTestId("assistant-message-mode-chip");
+      expect(chip).toHaveAttribute("data-mode", mode);
+      expect(chip).toHaveTextContent(label);
+    });
+
+    it("should_not_tag_a_test_turn", () => {
+      render(
+        <AssistantMessageItem
+          message={createMessage({
+            role: "user",
+            content: "Test flow",
+            action: "test_flow",
+          })}
+        />,
+      );
+
+      expect(screen.queryByTestId("assistant-message-mode-chip")).toBeNull();
+    });
+
+    it("should_not_tag_the_assistant_reply", () => {
+      render(
+        <AssistantMessageItem
+          message={createMessage({ content: "Sure.", mode: "ask" })}
+        />,
+      );
+
+      expect(screen.queryByTestId("assistant-message-mode-chip")).toBeNull();
+    });
   });
 
   describe("assistant messages", () => {
@@ -249,6 +289,7 @@ describe("AssistantMessageItem", () => {
     it("should detect component code in streaming content with progress", () => {
       const message = createMessage({
         role: "assistant",
+        mode: "component",
         content:
           "```python\nfrom langflow.custom import Component\n\nclass MyComponent(Component):\n    pass\n```",
         status: "streaming",
@@ -263,6 +304,27 @@ describe("AssistantMessageItem", () => {
 
       // Content matches component code regex AND has progress, so loading state is shown
       expect(screen.getByTestId("loading-state")).toBeInTheDocument();
+    });
+
+    it("should_stream_example_code_in_an_answer_as_text", () => {
+      // Only a component turn writes a component; an answer can quote one.
+      const message = createMessage({
+        role: "assistant",
+        mode: "ask",
+        content:
+          "```python\nfrom langflow.custom import Component\n\nclass MyComponent(Component):\n    pass\n```",
+        status: "streaming",
+        progress: {
+          step: "generating",
+          attempt: 0,
+          maxAttempts: 3,
+        },
+      });
+
+      render(<AssistantMessageItem message={message} />);
+
+      expect(screen.queryByTestId("loading-state")).toBeNull();
+      expect(screen.getByTestId("markdown-content")).toBeInTheDocument();
     });
   });
 

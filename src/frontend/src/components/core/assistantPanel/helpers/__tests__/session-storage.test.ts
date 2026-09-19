@@ -87,8 +87,35 @@ describe("deserializeMessages", () => {
     expect(restored.timestamp).toEqual(new Date("2026-07-08T12:00:00.000Z"));
   });
 
+  it("should_drop_the_build_mode_of_a_turn_from_before_the_mode_split", () => {
+    const legacy = {
+      id: "msg-1",
+      role: "user",
+      content: "Build a chatbot",
+      status: "complete",
+      mode: "build",
+      timestamp: "2026-07-08T12:00:00.000Z",
+    } as unknown as SerializedAssistantMessage;
+
+    const [restored] = deserializeMessages([legacy]);
+
+    expect(restored).not.toHaveProperty("mode");
+    expect(restored.content).toBe("Build a chatbot");
+  });
+
+  it.each(["component", "prompt", "ask"] as const)(
+    "should_keep_the_%s_mode",
+    (mode) => {
+      const [restored] = deserializeMessages(
+        serializeMessages([makeMessage({ mode })]),
+      );
+
+      expect(restored.mode).toBe(mode);
+    },
+  );
+
   it("round-trips a current message unchanged", () => {
-    const message = makeMessage({ status: "complete", mode: "build" });
+    const message = makeMessage({ status: "complete", mode: "prompt" });
 
     const [restored] = deserializeMessages(serializeMessages([message]));
 

@@ -2,6 +2,7 @@
  * Serialization and deserialization of assistant sessions for localStorage.
  */
 
+import { isAssistantMode } from "../assistant-modes";
 import type {
   AssistantMessage,
   SerializedAssistantMessage,
@@ -83,6 +84,8 @@ export function deserializeMessages(
     for (const key of LEGACY_MESSAGE_KEYS) {
       delete restored[key];
     }
+    // "build" turns from before the modes were split match no mode today.
+    if (!isAssistantMode(restored.mode)) delete restored.mode;
     return restored;
   });
 }

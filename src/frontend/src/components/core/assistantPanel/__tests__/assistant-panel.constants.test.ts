@@ -1,5 +1,6 @@
 import i18n from "@/i18n";
 import en from "@/locales/en.json";
+import { ASSISTANT_MODES } from "../assistant-modes";
 import {
   ASSISTANT_PLACEHOLDER_KEYS,
   ASSISTANT_TITLE,
@@ -7,9 +8,7 @@ import {
   getAssistantPlaceholderKey,
 } from "../assistant-panel.constants";
 
-const englishPlaceholders = ASSISTANT_PLACEHOLDER_KEYS.map(
-  (key) => (en as Record<string, string>)[key],
-);
+const english = en as Record<string, string>;
 
 describe("assistant-panel.constants", () => {
   describe("ASSISTANT_TITLE", () => {
@@ -19,27 +18,35 @@ describe("assistant-panel.constants", () => {
   });
 
   describe("ASSISTANT_PLACEHOLDER_KEYS", () => {
-    it("should have at least 2 options for randomization", () => {
-      expect(ASSISTANT_PLACEHOLDER_KEYS.length).toBeGreaterThanOrEqual(2);
-    });
+    it.each(ASSISTANT_MODES)(
+      "should_offer_several_%s_placeholders_with_english_text",
+      (mode) => {
+        const keys = ASSISTANT_PLACEHOLDER_KEYS[mode];
 
-    it("should point at non-empty English strings", () => {
-      for (const placeholder of englishPlaceholders) {
-        expect(typeof placeholder).toBe("string");
-        expect(placeholder.length).toBeGreaterThan(0);
-      }
-    });
+        expect(keys.length).toBeGreaterThanOrEqual(2);
+        for (const key of keys) {
+          expect(key.startsWith(`assistant.placeholder.${mode}.`)).toBe(true);
+          expect(english[key]?.length).toBeGreaterThan(0);
+        }
+      },
+    );
   });
 
   describe("getAssistantPlaceholderKey", () => {
-    it("should return one of the placeholder keys", () => {
+    it("should_default_to_the_component_placeholders", () => {
       const results = Array.from({ length: 10 }, () =>
         getAssistantPlaceholderKey(),
       );
 
       for (const result of results) {
-        expect(ASSISTANT_PLACEHOLDER_KEYS).toContain(result);
+        expect(ASSISTANT_PLACEHOLDER_KEYS.component).toContain(result);
       }
+    });
+
+    it.each(ASSISTANT_MODES)("should_pick_a_%s_placeholder", (mode) => {
+      expect(ASSISTANT_PLACEHOLDER_KEYS[mode]).toContain(
+        getAssistantPlaceholderKey(mode),
+      );
     });
   });
 
@@ -51,13 +58,16 @@ describe("assistant-panel.constants", () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it("should return one of the translated placeholders", () => {
+    it("should return one of the translated placeholders of the mode", () => {
+      const askPlaceholders = ASSISTANT_PLACEHOLDER_KEYS.ask.map(
+        (key) => english[key],
+      );
       const results = Array.from({ length: 10 }, () =>
-        getAssistantPlaceholder(),
+        getAssistantPlaceholder("ask"),
       );
 
       for (const result of results) {
-        expect(englishPlaceholders).toContain(result);
+        expect(askPlaceholders).toContain(result);
       }
     });
 
@@ -66,7 +76,10 @@ describe("assistant-panel.constants", () => {
       // bundle added later must still be picked up.
       const previousLanguage = i18n.language;
       const translated = Object.fromEntries(
-        ASSISTANT_PLACEHOLDER_KEYS.map((key, index) => [key, `late-${index}`]),
+        ASSISTANT_PLACEHOLDER_KEYS.component.map((key, index) => [
+          key,
+          `late-${index}`,
+        ]),
       );
       i18n.addResourceBundle("xx", "translation", translated);
       await i18n.changeLanguage("xx");

@@ -6,7 +6,7 @@ import type {
 } from "../assistant-panel.types";
 
 export interface AssistantSendOptions {
-  /** Panel mode of an agent turn. */
+  /** Panel mode of an agent turn, "ask" when omitted. Ignored with an action. */
   mode?: AssistantMode;
   /** "test_flow": the backend runs the canvas flow once instead of starting
    * an agent turn; the content is only the bubble's label. */

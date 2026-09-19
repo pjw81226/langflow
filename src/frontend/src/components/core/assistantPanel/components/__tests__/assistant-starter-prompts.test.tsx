@@ -2,23 +2,45 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { AssistantStarterPrompts } from "../assistant-starter-prompts";
 
 describe("AssistantStarterPrompts", () => {
-  it("should_offer_things_to_build_in_build_mode", () => {
+  it("should_offer_components_to_create_in_component_mode", () => {
     render(
       <AssistantStarterPrompts
-        mode="build"
+        mode="component"
         variant="expanded"
         onSelect={jest.fn()}
       />,
     );
 
-    expect(screen.getByText("What do you want to build?")).toBeInTheDocument();
+    expect(
+      screen.getByText("What should the component do?"),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("list", { name: "Example prompts" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(3);
     expect(
-      screen.getByText("Build a chatbot that answers questions from my PDF"),
+      screen.getByText("Create a component that counts the words in a text"),
     ).toBeInTheDocument();
+  });
+
+  it("should_offer_ways_an_agent_can_answer_in_prompt_mode", () => {
+    render(
+      <AssistantStarterPrompts
+        mode="prompt"
+        variant="expanded"
+        onSelect={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("How should the agent answer?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Make the agent answer like a friendly support rep"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("assistant-starter-prompt-2")).toHaveTextContent(
+      "Have the agent ask back when a request is unclear",
+    );
   });
 
   it("should_offer_things_to_ask_in_ask_mode", () => {
@@ -33,7 +55,7 @@ describe("AssistantStarterPrompts", () => {
     expect(screen.getByText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByText("What does this flow do?")).toBeInTheDocument();
     expect(
-      screen.queryByText("Build a chatbot that answers questions from my PDF"),
+      screen.queryByText("Create a component that counts the words in a text"),
     ).toBeNull();
   });
 
@@ -57,20 +79,20 @@ describe("AssistantStarterPrompts", () => {
   it("should_leave_the_title_out_of_the_compact_panel", () => {
     render(
       <AssistantStarterPrompts
-        mode="build"
+        mode="component"
         variant="compact"
         onSelect={jest.fn()}
       />,
     );
 
-    expect(screen.queryByText("What do you want to build?")).toBeNull();
+    expect(screen.queryByText("What should the component do?")).toBeNull();
     expect(screen.getAllByRole("button")).toHaveLength(3);
   });
 
   it("should_disable_the_examples_when_nothing_can_be_sent", () => {
     render(
       <AssistantStarterPrompts
-        mode="build"
+        mode="component"
         variant="compact"
         disabled
         onSelect={jest.fn()}

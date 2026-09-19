@@ -1,37 +1,44 @@
 import i18n from "@/i18n";
+import { DEFAULT_ASSISTANT_MODE } from "./assistant-modes";
 import type { AssistantMode } from "./assistant-panel.types";
 
 export const ASSISTANT_TITLE = "Langflow Assistant";
 
-export const ASSISTANT_PLACEHOLDER_KEYS = [
-  "assistant.placeholder.0",
-  "assistant.placeholder.1",
-  "assistant.placeholder.2",
-  "assistant.placeholder.3",
-  "assistant.placeholder.4",
-] as const;
-
-// Ask mode invites questions, not build requests.
-export const ASSISTANT_ASK_PLACEHOLDER_KEYS = [
-  "assistant.placeholder.ask.0",
-  "assistant.placeholder.ask.1",
-  "assistant.placeholder.ask.2",
-] as const;
+// Each mode invites its own kind of request.
+export const ASSISTANT_PLACEHOLDER_KEYS: Record<
+  AssistantMode,
+  readonly string[]
+> = {
+  component: [
+    "assistant.placeholder.component.0",
+    "assistant.placeholder.component.1",
+    "assistant.placeholder.component.2",
+  ],
+  prompt: [
+    "assistant.placeholder.prompt.0",
+    "assistant.placeholder.prompt.1",
+    "assistant.placeholder.prompt.2",
+  ],
+  ask: [
+    "assistant.placeholder.ask.0",
+    "assistant.placeholder.ask.1",
+    "assistant.placeholder.ask.2",
+  ],
+};
 
 // Keys, not translated strings: this module is imported before the saved
 // language bundle finishes loading (see index.tsx), so translating here would
 // pin every placeholder to the English fallback.
 export function getAssistantPlaceholderKey(
-  mode: AssistantMode = "build",
+  mode: AssistantMode = DEFAULT_ASSISTANT_MODE,
 ): string {
-  const keys =
-    mode === "ask"
-      ? ASSISTANT_ASK_PLACEHOLDER_KEYS
-      : ASSISTANT_PLACEHOLDER_KEYS;
+  const keys = ASSISTANT_PLACEHOLDER_KEYS[mode];
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
-export function getAssistantPlaceholder(mode: AssistantMode = "build"): string {
+export function getAssistantPlaceholder(
+  mode: AssistantMode = DEFAULT_ASSISTANT_MODE,
+): string {
   return i18n.t(getAssistantPlaceholderKey(mode));
 }
 

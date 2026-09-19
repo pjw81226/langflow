@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
+import { DEFAULT_ASSISTANT_MODE } from "../assistant-modes";
 import { getAssistantPlaceholderKey } from "../assistant-panel.constants";
 import type { AssistantMode, AssistantModel } from "../assistant-panel.types";
 import { getRandomPlaceholderMessage } from "../helpers/messages";
@@ -78,7 +79,7 @@ interface AssistantInputProps {
   onMentionOpenChange?: (open: boolean) => void;
   /** Panel mode; drives the idle placeholder. */
   mode?: AssistantMode;
-  /** When provided, the composer shows the Build | Ask switch. */
+  /** When provided, the composer shows the Component | Prompt | Ask switch. */
   onModeChange?: (mode: AssistantMode) => void;
   /** When provided, the composer shows the "Test flow" button. */
   onTestFlow?: (model: AssistantModel | null) => void;
@@ -101,7 +102,7 @@ export function AssistantInput({
   draftMessage = "",
   onDraftChange,
   onMentionOpenChange,
-  mode = "build",
+  mode = DEFAULT_ASSISTANT_MODE,
   onModeChange,
   onTestFlow,
   prefill,

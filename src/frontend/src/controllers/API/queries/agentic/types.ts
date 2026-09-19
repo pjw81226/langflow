@@ -146,10 +146,11 @@ export interface AgenticTestResult {
 }
 
 /**
- * Panel mode the user picked for a turn. "build" lets the assistant change the
- * canvas (today's behaviour); "ask" is a read-only help turn.
+ * Panel mode the user picked for a turn: "component" writes a custom
+ * component, "prompt" writes instructions for an agent or model, "ask"
+ * answers questions about Langflow.
  */
-export type AssistantMode = "build" | "ask";
+export type AssistantMode = "component" | "prompt" | "ask";
 
 export interface AgenticAssistRequest {
   flow_id: string;
@@ -158,9 +159,10 @@ export interface AgenticAssistRequest {
   provider?: string;
   max_retries?: number;
   session_id?: string;
-  /** Absent means "build". A backend without mode support ignores the field. */
+  /** Agent turns only; the backend treats a missing mode as "ask". */
   mode?: AssistantMode;
-  /** "test_flow" runs the canvas flow once instead of starting an agent turn. */
+  /** "test_flow" runs the canvas flow once instead of starting an agent
+   * turn. Sent without a mode. */
   action?: "test_flow";
   /** {English label: label in the UI language}, sent with ask turns on a
    * translated UI so the agent can match labels to the English docs. */

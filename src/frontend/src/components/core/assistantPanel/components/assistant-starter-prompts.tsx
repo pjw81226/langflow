@@ -19,10 +19,11 @@ const STARTER_INDEXES = [0, 1, 2] as const;
  * Someone who has never used the assistant does not know what it can be asked.
  * The composer's placeholder would tell them, but it disappears as soon as the
  * textarea is focused, which is on open. These stay visible until the first
- * message, and differ per mode: things to build, or things to ask.
+ * message, and differ per mode: a component to create, how an agent should
+ * answer, or a question.
  *
- * Picking one fills the composer instead of sending it: "my PDF" or "a REST
- * API" is a starting point to edit, not a request to run as is.
+ * Picking one fills the composer instead of sending it: an example is a
+ * starting point to edit, not a request to run as is.
  */
 export function AssistantStarterPrompts({
   mode,

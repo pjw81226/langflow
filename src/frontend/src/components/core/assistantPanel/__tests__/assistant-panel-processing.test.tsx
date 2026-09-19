@@ -32,11 +32,15 @@ jest.mock("@/stores/utilityStore", () => ({
     selector: (state: {
       agenticExperienceEnabled: boolean;
       assistantDockDefault: boolean;
+      allowCustomComponents: boolean;
+      customComponentAdminOnly: boolean;
     }) => unknown,
   ) =>
     selector({
       agenticExperienceEnabled: true,
       assistantDockDefault: mockDockDefault,
+      allowCustomComponents: true,
+      customComponentAdminOnly: false,
     }),
 }));
 

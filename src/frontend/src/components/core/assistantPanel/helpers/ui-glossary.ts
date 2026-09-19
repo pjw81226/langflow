@@ -14,7 +14,8 @@
 import i18n from "@/i18n";
 
 const GLOSSARY_KEYS = [
-  "assistant.mode.build",
+  "assistant.mode.component",
+  "assistant.mode.prompt",
   "assistant.mode.ask",
   "assistant.test.action",
   "assistant.test.testAgain",

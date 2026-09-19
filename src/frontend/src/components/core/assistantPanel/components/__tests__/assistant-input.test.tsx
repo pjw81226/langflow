@@ -30,10 +30,10 @@ jest.mock("../../helpers/messages", () => ({
 }));
 
 jest.mock("../../assistant-panel.constants", () => ({
-  // Resolve through the en.json mock to "Ask me anything about Langflow..."
-  // (build) and "Ask how to use Langflow..." (ask).
-  getAssistantPlaceholderKey: (mode?: string) =>
-    mode === "ask" ? "assistant.placeholder.ask.0" : "assistant.placeholder.4",
+  ...jest.requireActual("../../assistant-panel.constants"),
+  // The first placeholder of each mode, so the text is predictable.
+  getAssistantPlaceholderKey: (mode = "component") =>
+    `assistant.placeholder.${mode}.0`,
 }));
 
 describe("AssistantInput", () => {
@@ -77,11 +77,11 @@ describe("AssistantInput", () => {
   });
 
   describe("rendering", () => {
-    it("should render textarea with idle placeholder", () => {
+    it("should render textarea with the component mode's idle placeholder", () => {
       render(<AssistantInput {...defaultProps} />);
 
       expect(
-        screen.getByPlaceholderText("Ask me anything about Langflow..."),
+        screen.getByPlaceholderText("Describe the component you need..."),
       ).toBeInTheDocument();
     });
 
@@ -120,7 +120,7 @@ describe("AssistantInput", () => {
       render(
         <AssistantInput
           {...defaultProps}
-          mode="build"
+          mode="component"
           onModeChange={onModeChange}
         />,
       );
@@ -128,6 +128,20 @@ describe("AssistantInput", () => {
       fireEvent.click(screen.getByTestId("assistant-mode-ask"));
 
       expect(onModeChange).toHaveBeenCalledWith("ask");
+    });
+
+    it("should_use_an_instruction_placeholder_in_prompt_mode", () => {
+      render(
+        <AssistantInput
+          {...defaultProps}
+          mode="prompt"
+          onModeChange={jest.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByPlaceholderText("Describe how the agent should answer..."),
+      ).toBeInTheDocument();
     });
 
     it("should_use_a_question_placeholder_in_ask_mode", () => {

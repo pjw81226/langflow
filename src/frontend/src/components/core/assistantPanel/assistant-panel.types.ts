@@ -20,7 +20,7 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** Panel mode this turn was sent in. */
+  /** Panel mode this turn was sent in. Absent on test turns. */
   mode?: AssistantMode;
   /** Set on both messages of a "Test flow" turn: no agent ran. */
   action?: "test_flow";

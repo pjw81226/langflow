@@ -73,13 +73,16 @@ export function AssistantMessageItem({
   // Randomized once per message.
   const thinkingMessage = useMemo(() => getRandomThinkingMessage(), []);
 
-  // Memoized misclassified-intent detector (regex per token was hot).
+  // Component code streaming in before the first progress event. Only a
+  // component turn writes one; an answer may quote code as an example.
+  // Memoized: the regex would otherwise run on every token.
   const contentLooksLikeComponentCode = useMemo(
     () =>
       isStreaming &&
+      message.mode === "component" &&
       !!message.content &&
       /```python[\s\S]*class\s+\w+.*Component/.test(message.content),
-    [isStreaming, message.content],
+    [isStreaming, message.mode, message.content],
   );
 
   // True when the rich loading state (component generation or a test run)
@@ -131,12 +134,13 @@ export function AssistantMessageItem({
             >
               {isUser ? t("assistant.user") : t("assistant.title")}
             </span>
-            {isUser && message.mode === "ask" && (
+            {isUser && message.mode && (
               <span
-                data-testid="assistant-message-ask-chip"
+                data-testid="assistant-message-mode-chip"
+                data-mode={message.mode}
                 className="rounded-full border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground"
               >
-                {t("assistant.mode.ask")}
+                {t(`assistant.mode.${message.mode}`)}
               </span>
             )}
             {!isUser && message.status === "complete" && (

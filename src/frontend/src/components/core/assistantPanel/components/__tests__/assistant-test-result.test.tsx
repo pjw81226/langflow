@@ -4,7 +4,7 @@ import { AssistantTestResult } from "../assistant-test-result";
 
 const FAILED: AgenticTestResult = {
   status: "failed",
-  trigger: "build",
+  trigger: "manual",
   duration_seconds: 3.24,
   error: {
     kind: "fixable",

@@ -100,17 +100,22 @@ export function useAssistantChat(
       lastModelRef.current = model;
 
       // "test_flow" runs the canvas flow once instead of starting an agent
-      // turn; ``content`` is then only the bubble's label.
+      // turn; ``content`` is then only the bubble's label, and no mode is sent.
       const turnAction = options?.action;
-      const turnMode: AssistantMode = options?.mode ?? "build";
-      const isAskTurn = turnMode === "ask";
+      const turnMode: AssistantMode | undefined = turnAction
+        ? undefined
+        : (options?.mode ?? "ask");
+      // Both messages of the turn remember how it was sent.
+      const turnTags: Pick<AssistantMessage, "mode" | "action"> = {
+        ...(turnMode ? { mode: turnMode } : {}),
+        ...(turnAction ? { action: turnAction } : {}),
+      };
 
       const userMessage: AssistantMessage = {
         id: uid.randomUUID(10),
         role: "user",
         content,
-        mode: turnMode,
-        ...(turnAction ? { action: turnAction } : {}),
+        ...turnTags,
         timestamp: new Date(),
         status: "complete",
       };
@@ -120,8 +125,7 @@ export function useAssistantChat(
         id: assistantMessageId,
         role: "assistant",
         content: "",
-        mode: turnMode,
-        ...(turnAction ? { action: turnAction } : {}),
+        ...turnTags,
         timestamp: new Date(),
         status: "streaming",
       };
@@ -141,9 +145,8 @@ export function useAssistantChat(
             provider: model.provider,
             model_name: model.name,
             session_id: sessionIdRef.current,
-            mode: turnMode,
-            ...(turnAction ? { action: turnAction } : {}),
-            ...(isAskTurn ? { ui_glossary: buildUiGlossary() } : {}),
+            ...turnTags,
+            ...(turnMode === "ask" ? { ui_glossary: buildUiGlossary() } : {}),
           },
           {
             onProgress: (event) => {

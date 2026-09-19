@@ -35,6 +35,12 @@ jest.mock("@/stores/flowsManagerStore", () => {
   return { __esModule: true, default: fn };
 });
 
+// Stands in for a translated UI, where ask turns carry the glossary.
+const GLOSSARY = { Ask: "Preguntar" };
+jest.mock("../../helpers/ui-glossary", () => ({
+  buildUiGlossary: () => GLOSSARY,
+}));
+
 jest.mock("short-unique-id", () => {
   let counter = 0;
   return class ShortUniqueId {
@@ -72,44 +78,109 @@ describe("useAssistantChat — panel mode", () => {
   });
 
   describe("request and message tagging", () => {
-    it("should_send_build_when_no_mode_is_given", async () => {
+    it("should_send_ask_when_no_mode_is_given", async () => {
       const { result } = renderHook(() => useAssistantChat());
 
       await act(async () => {
-        await result.current.handleSend("build a chatbot", TEST_MODEL);
-      });
-
-      expect(requestAt(0).mode).toBe("build");
-      expect(result.current.messages.map((m) => m.mode)).toEqual([
-        "build",
-        "build",
-      ]);
-    });
-
-    it("should_send_ask_and_tag_both_messages_of_the_turn", async () => {
-      const { result } = renderHook(() => useAssistantChat());
-
-      await act(async () => {
-        await result.current.handleSend("what is an Agent?", TEST_MODEL, {
-          mode: "ask",
-        });
+        await result.current.handleSend("what is an Agent?", TEST_MODEL);
       });
 
       expect(requestAt(0).mode).toBe("ask");
-      expect(result.current.messages.map((m) => [m.role, m.mode])).toEqual([
-        ["user", "ask"],
-        ["assistant", "ask"],
+      expect(result.current.messages.map((m) => m.mode)).toEqual([
+        "ask",
+        "ask",
       ]);
     });
 
-    it("should_retry_an_ask_turn_as_an_ask_turn", async () => {
+    it.each(["component", "prompt", "ask"] as const)(
+      "should_send_%s_and_tag_both_messages_of_the_turn",
+      async (mode) => {
+        const { result } = renderHook(() => useAssistantChat());
+
+        await act(async () => {
+          await result.current.handleSend("hello", TEST_MODEL, { mode });
+        });
+
+        expect(requestAt(0).mode).toBe(mode);
+        expect(result.current.messages.map((m) => [m.role, m.mode])).toEqual([
+          ["user", mode],
+          ["assistant", mode],
+        ]);
+      },
+    );
+
+    it("should_send_the_ui_glossary_with_ask_turns_only", async () => {
+      // Each turn has to finish before the next one can start.
+      mockPostAssistStream.mockImplementation(
+        async (_req: unknown, callbacks: StreamCallbacks) =>
+          callbacks.onComplete({ event: "complete", data: { result: "ok" } }),
+      );
+      const { result } = renderHook(() => useAssistantChat());
+
+      for (const mode of ["ask", "component", "prompt"] as const) {
+        await act(async () => {
+          await result.current.handleSend("hello", TEST_MODEL, { mode });
+        });
+      }
+
+      expect(requestAt(0).ui_glossary).toEqual(GLOSSARY);
+      expect(requestAt(1)).not.toHaveProperty("ui_glossary");
+      expect(requestAt(2)).not.toHaveProperty("ui_glossary");
+    });
+
+    it("should_send_no_mode_with_a_test_turn", async () => {
+      const { result } = renderHook(() => useAssistantChat());
+
+      await act(async () => {
+        await result.current.handleSend("Test flow", TEST_MODEL, {
+          mode: "component",
+          action: "test_flow",
+        });
+      });
+
+      expect(requestAt(0).action).toBe("test_flow");
+      expect(requestAt(0)).not.toHaveProperty("mode");
+      expect(requestAt(0)).not.toHaveProperty("ui_glossary");
+      expect(
+        result.current.messages.map((m) => [m.role, m.mode, m.action]),
+      ).toEqual([
+        ["user", undefined, "test_flow"],
+        ["assistant", undefined, "test_flow"],
+      ]);
+    });
+
+    it.each(["component", "prompt", "ask"] as const)(
+      "should_retry_a_%s_turn_in_the_same_mode",
+      async (mode) => {
+        streamOnce((callbacks) =>
+          callbacks.onError({ event: "error", message: "boom" }),
+        );
+        const { result } = renderHook(() => useAssistantChat());
+        await act(async () => {
+          await result.current.handleSend("hello", TEST_MODEL, { mode });
+        });
+
+        const failed = result.current.messages.find(
+          (m) => m.role === "assistant",
+        );
+        await act(async () => {
+          result.current.handleRetry(failed?.id ?? "", () => true);
+        });
+
+        expect(mockPostAssistStream).toHaveBeenCalledTimes(2);
+        expect(requestAt(1).mode).toBe(mode);
+        expect(requestAt(1).input_value).toBe("hello");
+      },
+    );
+
+    it("should_retry_a_test_turn_as_a_test_turn", async () => {
       streamOnce((callbacks) =>
         callbacks.onError({ event: "error", message: "boom" }),
       );
       const { result } = renderHook(() => useAssistantChat());
       await act(async () => {
-        await result.current.handleSend("what is an Agent?", TEST_MODEL, {
-          mode: "ask",
+        await result.current.handleSend("Test flow", TEST_MODEL, {
+          action: "test_flow",
         });
       });
 
@@ -120,8 +191,8 @@ describe("useAssistantChat — panel mode", () => {
         result.current.handleRetry(failed?.id ?? "", () => true);
       });
 
-      expect(mockPostAssistStream).toHaveBeenCalledTimes(2);
-      expect(requestAt(1).mode).toBe("ask");
+      expect(requestAt(1).action).toBe("test_flow");
+      expect(requestAt(1)).not.toHaveProperty("mode");
     });
   });
 });

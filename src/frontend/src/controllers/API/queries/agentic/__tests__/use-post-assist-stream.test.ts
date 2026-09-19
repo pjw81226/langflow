@@ -395,7 +395,7 @@ describe("error responses", () => {
 
     const onError = jest.fn();
     await postAssistStream(
-      { flow_id: "f1", input_value: "", mode: "build" },
+      { flow_id: "f1", input_value: "", mode: "component" },
       { onError },
     );
 

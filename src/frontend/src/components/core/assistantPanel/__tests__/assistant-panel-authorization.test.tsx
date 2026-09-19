@@ -14,6 +14,7 @@ const mockHandleSend = jest.fn();
 let mockCatalogReady = true;
 let mockHasEnabledModels = true;
 let mockModelAllowed = true;
+let mockAllowCustomComponents = true;
 
 const mockIsModelEnabled = (model: AssistantModel | null) =>
   mockModelAllowed &&
@@ -45,9 +46,16 @@ jest.mock("@/stores/utilityStore", () => ({
     selector: (state: {
       agenticExperienceEnabled: boolean;
       assistantDockDefault: boolean;
+      allowCustomComponents: boolean;
+      customComponentAdminOnly: boolean;
     }) => unknown,
   ) =>
-    selector({ agenticExperienceEnabled: true, assistantDockDefault: false }),
+    selector({
+      agenticExperienceEnabled: true,
+      assistantDockDefault: false,
+      allowCustomComponents: mockAllowCustomComponents,
+      customComponentAdminOnly: false,
+    }),
 }));
 
 jest.mock("use-stick-to-bottom", () => {
@@ -139,6 +147,7 @@ describe("AssistantPanel scoped model authorization", () => {
     mockCatalogReady = true;
     mockHasEnabledModels = true;
     mockModelAllowed = true;
+    mockAllowCustomComponents = true;
   });
 
   it("guards direct panel sends with current catalog membership", async () => {
@@ -179,7 +188,7 @@ describe("AssistantPanel scoped model authorization", () => {
       );
     });
 
-    it("defaults to a build turn when no mode was ever chosen", async () => {
+    it("defaults to a component turn when no mode was ever chosen", async () => {
       const user = userEvent.setup();
 
       render(<AssistantPanel isOpen onClose={jest.fn()} />);
@@ -188,8 +197,25 @@ describe("AssistantPanel scoped model authorization", () => {
       expect(mockHandleSend).toHaveBeenCalledWith(
         "direct message",
         SAVED_MODEL,
-        { mode: "build" },
+        { mode: "component" },
       );
+    });
+
+    it("sends a prompt turn instead where custom components are turned off", async () => {
+      // The server would refuse a component turn; the stored choice stays.
+      localStorage.setItem("langflow-assistant-mode", "component");
+      mockAllowCustomComponents = false;
+      const user = userEvent.setup();
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+      await user.click(screen.getByTestId("mock-assistant-send"));
+
+      expect(mockHandleSend).toHaveBeenCalledWith(
+        "direct message",
+        SAVED_MODEL,
+        { mode: "prompt" },
+      );
+      expect(localStorage.getItem("langflow-assistant-mode")).toBe("component");
     });
   });
 
@@ -210,7 +236,9 @@ describe("AssistantPanel scoped model authorization", () => {
 
       render(<AssistantPanel isOpen onClose={jest.fn()} />);
 
-      expect(screen.getByTestId("assistant-starter-build-0")).toBeDisabled();
+      expect(
+        screen.getByTestId("assistant-starter-component-0"),
+      ).toBeDisabled();
     });
   });
 });
