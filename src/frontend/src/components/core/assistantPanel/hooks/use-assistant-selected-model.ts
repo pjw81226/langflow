@@ -7,9 +7,9 @@ import type { AssistantModel } from "../assistant-panel.types";
  *   - On change, persists back to ``localStorage`` so the choice survives
  *     across page reloads and across surfaces that select a model.
  *
- * Both the AssistantInput (inside the panel) and the FlowBuilderWelcome
- * input (canvas overlay) consume this so a user who picks a model in one
- * place sees it pre-selected in the other.
+ * The panel swaps between two AssistantInput instances (empty state and
+ * conversation), so the choice lives in storage rather than component state:
+ * whichever one mounts next shows the model picked in the other.
  */
 export const ASSISTANT_MODEL_STORAGE_KEY = "langflow-assistant-selected-model";
 

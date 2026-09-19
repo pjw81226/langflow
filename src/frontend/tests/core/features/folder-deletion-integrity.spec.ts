@@ -366,26 +366,10 @@ test(
 
     await page.getByTestId("new_project_btn_empty_page").click();
 
-    // The empty-state CTA can either open the templates modal directly
-    // (EmptyPageCommunity) or surface the FlowBuilderWelcome overlay
-    // (EmptyFolder → useStartNewFlow). Race both and click "Browse more"
-    // when the overlay shows up so we always end up on the templates modal.
-    await Promise.race([
-      page.waitForSelector('[data-testid="modal-title"]', { timeout: 30000 }),
-      page.waitForSelector('[data-testid="flow-builder-welcome-panel"]', {
-        timeout: 30000,
-      }),
-    ]);
-    if (
-      (await page
-        .locator('[data-testid="flow-builder-welcome-panel"]')
-        .count()) > 0
-    ) {
-      await page.getByTestId("flow-builder-welcome-browse-more").click();
-      await page.waitForSelector('[data-testid="modal-title"]', {
-        timeout: 30000,
-      });
-    }
+    // The empty-state CTA opens the templates modal.
+    await page.waitForSelector('[data-testid="modal-title"]', {
+      timeout: 30000,
+    });
 
     // Navigate to templates
     await page.getByTestId("side_nav_options_all-templates").click();

@@ -148,8 +148,8 @@ const useFlowStore = create<FlowStoreType>((set, get) => ({
     set((state) => ({
       fitViewRequest: { id: state.fitViewRequest.id + 1, onFitted },
     }));
-    // A request replaced before it ran must not strand its caller: the welcome
-    // overlay waits on this callback before it uncovers the canvas.
+    // A request replaced before it ran must not strand its caller, which may
+    // be waiting on this callback.
     superseded?.();
   },
   autoSaveFlow: undefined,

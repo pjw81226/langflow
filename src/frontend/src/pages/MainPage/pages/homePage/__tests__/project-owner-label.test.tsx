@@ -48,10 +48,6 @@ jest.mock("@/components/common/paginatorComponent", () => () => null);
 jest.mock("@/components/core/cardsWrapComponent", () => ({ children }) => (
   <>{children}</>
 ));
-jest.mock(
-  "@/components/core/flowBuilderWelcome/hooks/use-start-new-flow",
-  () => ({ useStartNewFlow: () => jest.fn() }),
-);
 jest.mock("@/constants/constants", () => ({ IS_MAC: false }));
 jest.mock("@/contexts/permissionsContext", () => ({
   PermissionsProvider: ({ children }) => <>{children}</>,

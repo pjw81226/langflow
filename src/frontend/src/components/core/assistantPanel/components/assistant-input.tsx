@@ -384,8 +384,8 @@ export function AssistantInput({
             </div>
           )}
           {/* Inside the textarea wrapper on purpose: as a direct child of the composer's
-              flex column it would also inherit the column gap, spacing the hint far wider
-              than the welcome screen's. */}
+              flex column it would also inherit the column gap and sit far below the text
+              it belongs to. */}
           {isAtLimit && (
             <div
               id={limitHintId}

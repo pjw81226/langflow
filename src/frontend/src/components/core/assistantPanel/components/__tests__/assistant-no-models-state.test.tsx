@@ -2,7 +2,7 @@
  * Component tests for AssistantNoModelsState.
  *
  * The "Configure Model Providers" CTA must open the inline
- * ModelProviderModal — matching FlowBuilderWelcome and ModelSelector — instead
+ * ModelProviderModal — matching ModelSelector — instead
  * of navigating to the Settings page, so the user stays inside the flow
  * builder context.
  */

@@ -25,13 +25,6 @@ interface HeaderComponentProps {
   view: "list" | "grid";
   setView: (view: "list" | "grid") => void;
   setNewProjectModal: (newProjectModal: boolean) => void;
-  /**
-   * Primary "New Flow" handler. Preferred when defined — bypasses the
-   * templates modal and routes the user straight to a freshly-created
-   * empty flow with the welcome overlay primed. Falls back to opening the
-   * templates modal when not provided so legacy call sites still work.
-   */
-  onNewFlow?: () => void;
   folderName?: string;
   setSearch: (search: string) => void;
   isEmptyFolder: boolean;
@@ -45,7 +38,6 @@ const HeaderComponent = ({
   view,
   setView,
   setNewProjectModal,
-  onNewFlow,
   setSearch,
   isEmptyFolder,
   selectedFlows,
@@ -302,9 +294,7 @@ const HeaderComponent = ({
                       variant="default"
                       size="iconMd"
                       className="z-50 px-2.5 !text-mmd"
-                      onClick={() =>
-                        onNewFlow ? onNewFlow() : setNewProjectModal(true)
-                      }
+                      onClick={() => setNewProjectModal(true)}
                       id="new-project-btn"
                       data-testid="new-project-btn"
                     >

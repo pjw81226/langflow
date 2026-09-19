@@ -130,9 +130,7 @@ test(
       timeout: 30000,
     });
 
-    // The empty-page CTA now routes through the welcome overlay before the
-    // templates modal opens; openTemplatesModal handles both the overlay and
-    // direct-modal paths.
+    // The empty-page CTA opens the templates modal.
     await openTemplatesModal(page, {
       fromEmptyPage: true,
       modalTimeout: 30000,

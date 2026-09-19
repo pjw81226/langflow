@@ -43,15 +43,9 @@ async function openBlankFlowForA11y(page: LangflowPage) {
     await page.getByTestId(TID.newProjectBtn).click();
   }
 
-  const welcomePanel = page.getByTestId("flow-builder-welcome-panel");
-  const modalTitle = page.getByTestId(TID.modalTitle);
-  await expect(welcomePanel.or(modalTitle)).toBeVisible({
+  await expect(page.getByTestId(TID.modalTitle)).toBeVisible({
     timeout: TIMEOUTS.standard,
   });
-
-  if (await welcomePanel.isVisible()) {
-    await page.getByTestId("flow-builder-welcome-browse-more").click();
-  }
 
   await expect(page.getByTestId(TID.blankFlow)).toBeVisible({
     timeout: TIMEOUTS.standard,

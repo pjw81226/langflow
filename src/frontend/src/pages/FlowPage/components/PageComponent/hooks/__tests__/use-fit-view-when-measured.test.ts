@@ -162,9 +162,8 @@ describe("useFitViewWhenMeasured", () => {
   });
 
   describe("canvas resize after the fit", () => {
-    // The welcome overlay hides the sidebar while it is up: the canvas is wider
-    // for the fit and narrows the moment the overlay closes, leaving the graph
-    // framed for a viewport it no longer has.
+    // A sidebar or panel that settles in right after the fit narrows the
+    // canvas, leaving the graph framed for a viewport it no longer has.
     it("should refit when the canvas resizes and the viewport is untouched", () => {
       openFlow("flow-1");
       setNodesInitialized(true);
@@ -226,8 +225,8 @@ describe("useFitViewWhenMeasured", () => {
     });
   });
 
-  // The sequence a template open actually depends on, end to end: the fit runs
-  // under the welcome overlay, the callback uncovers the canvas, the sidebar
+  // A caller that covers the canvas until the fit lands, end to end: the fit
+  // runs under the overlay, the callback uncovers the canvas, the sidebar
   // returns and narrows it, and the correction re-frames the graph for the size
   // the canvas settles at.
   it("should frame the graph for the canvas the overlay leaves behind", () => {

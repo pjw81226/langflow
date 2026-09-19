@@ -107,7 +107,6 @@ export async function seedFlowIfEmpty(page: Page): Promise<boolean> {
     }
   };
   page.on("response", rememberCreateResponse);
-  let placeholderFlowId: string | undefined;
 
   // A mobile-viewport test can be the first to hit an empty workspace (each CI
   // shard starts from a fresh DB), so seed at desktop width and restore the
@@ -121,13 +120,6 @@ export async function seedFlowIfEmpty(page: Page): Promise<boolean> {
       await page.setViewportSize(SEED_VIEWPORT);
     }
     await openTemplatesModal(page, { fromEmptyPage: true });
-    placeholderFlowId = new URL(page.url()).pathname.match(
-      /\/flow\/([^/?#]+)/,
-    )?.[1];
-    expect(
-      placeholderFlowId,
-      "Empty-state seeding must create a blank placeholder flow",
-    ).toBeTruthy();
     await selectStarterTemplate(page, SEEDED_FLOW_NAME);
     await waitForFlowEditorReady(page);
     await page.goto("/");
@@ -144,21 +136,8 @@ export async function seedFlowIfEmpty(page: Page): Promise<boolean> {
       throw error;
     }
 
-    // A conflict from the initial blank-flow POST means this worker never
-    // created anything. A conflict after opening the templates modal means it
-    // owns a blank placeholder that the normal flow-switch cleanup never sees,
-    // so delete only that known id before returning home.
-    if (placeholderFlowId) {
-      const cleanupResponse = await page.request.delete("/api/v1/flows/", {
-        data: [placeholderFlowId],
-      });
-      expect(
-        cleanupResponse.ok(),
-        `Deleting the losing seed placeholder returned ${cleanupResponse.status()}`,
-      ).toBeTruthy();
-      await cleanupResponse.body();
-    }
-
+    // The losing worker's only POST was the template flow itself, so it
+    // created nothing and can wait for the winner's flow.
     await waitForConcurrentSeed(page);
   } finally {
     page.off("response", rememberCreateResponse);

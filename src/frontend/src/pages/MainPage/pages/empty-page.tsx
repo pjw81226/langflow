@@ -6,7 +6,6 @@ import logoDarkPng from "@/assets/logo_dark.png";
 import logoLightPng from "@/assets/logo_light.png";
 import { ForwardedIconComponent } from "@/components/common/genericIconComponent";
 import CardsWrapComponent from "@/components/core/cardsWrapComponent";
-import { useStartNewFlow } from "@/components/core/flowBuilderWelcome/hooks/use-start-new-flow";
 import { Button } from "@/components/ui/button";
 import { DotBackgroundDemo } from "@/components/ui/dot-background";
 import { DISCORD_URL, GITHUB_URL } from "@/constants/constants";
@@ -33,7 +32,6 @@ export const EmptyPageCommunity = ({
   const discordCount: number = useDarkStore((state) => state.discordCount);
   const { mutate: updateUser } = useUpdateUser();
   const { mutate: mutateLoggedUser } = useGetUserData();
-  const startNewFlow = useStartNewFlow();
 
   const handleUserTrack = (key: string) => () => {
     const optins = userData?.optins ?? {};
@@ -160,7 +158,7 @@ export const EmptyPageCommunity = ({
               <Button
                 variant="default"
                 className="z-10 m-auto mt-3 h-auto min-h-10 w-auto whitespace-normal rounded-lg font-bold transition-all duration-300"
-                onClick={() => startNewFlow()}
+                onClick={() => setOpenModal(true)}
                 id="new-project-btn"
                 data-testid="new_project_btn_empty_page"
               >

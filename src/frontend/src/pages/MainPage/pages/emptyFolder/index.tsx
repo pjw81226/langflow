@@ -6,13 +6,9 @@ import { useUtilityStore } from "@/stores/utilityStore";
 
 type EmptyFolderProps = {
   setOpenModal: (open: boolean) => void;
-  /** Preferred handler — bypasses the templates modal and starts a fresh
-   *  flow with the welcome overlay primed. Falls back to ``setOpenModal``
-   *  when omitted to keep legacy callers working. */
-  onNewFlow?: () => void;
 };
 
-export const EmptyFolder = ({ setOpenModal, onNewFlow }: EmptyFolderProps) => {
+export const EmptyFolder = ({ setOpenModal }: EmptyFolderProps) => {
   const { t } = useTranslation();
   const folders = useFolderStore((state) => state.folders);
   const hideNewFlowButton = useUtilityStore((state) => state.hideNewFlowButton);
@@ -34,7 +30,7 @@ export const EmptyFolder = ({ setOpenModal, onNewFlow }: EmptyFolderProps) => {
         {!hideNewFlowButton && (
           <Button
             variant="default"
-            onClick={() => (onNewFlow ? onNewFlow() : setOpenModal(true))}
+            onClick={() => setOpenModal(true)}
             id="new-project-btn"
             data-testid="new_project_btn_empty_page"
           >

@@ -18,16 +18,6 @@ interface WrapperProps {
   [key: string]: unknown;
 }
 
-// startNewFlow mock shared across the suite so assertions can inspect it.
-const startNewFlowMock = jest.fn();
-
-jest.mock(
-  "@/components/core/flowBuilderWelcome/hooks/use-start-new-flow",
-  () => ({
-    useStartNewFlow: () => startNewFlowMock,
-  }),
-);
-
 jest.mock("@/assets/logo_dark.png", () => "logo_dark.png");
 jest.mock("@/assets/logo_light.png", () => "logo_light.png");
 
@@ -100,16 +90,15 @@ describe("EmptyPageCommunity - Create first flow behavior", () => {
     jest.clearAllMocks();
   });
 
-  it("should_start_new_flow_when_create_first_flow_clicked", () => {
+  it("should_open_templates_modal_when_create_first_flow_clicked", () => {
     const setOpenModal = jest.fn();
     render(<EmptyPageCommunity setOpenModal={setOpenModal} />);
 
     fireEvent.click(screen.getByTestId("new_project_btn_empty_page"));
 
-    // Empty-state button must open the new Langflow Assistant welcome flow,
-    // matching the "New Flow" button shown when the user already has flows.
-    expect(startNewFlowMock).toHaveBeenCalledTimes(1);
-    // It must NOT open the old TemplatesModal.
-    expect(setOpenModal).not.toHaveBeenCalled();
+    // Same as the "New Flow" button shown once the user has flows: pick a
+    // template or a blank flow in the templates modal.
+    expect(setOpenModal).toHaveBeenCalledTimes(1);
+    expect(setOpenModal).toHaveBeenCalledWith(true);
   });
 });

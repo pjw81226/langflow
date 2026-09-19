@@ -5,16 +5,6 @@ import { TEXTS } from "../../utils/constants/texts";
 import { addComponentFromSidebar } from "../../utils/flow/add-component-from-sidebar";
 
 const waitForNotificationFlowEditor = async (page: Page) => {
-  const welcomeBackdrop = page.getByTestId("flow-builder-welcome-backdrop");
-  const welcomeBackdropVisible = await welcomeBackdrop
-    .waitFor({ state: "visible", timeout: 5000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (welcomeBackdropVisible) {
-    await page.getByTestId("flow-builder-welcome-faux-rail-components").click();
-  }
-
   await expect(page.getByTestId("sidebar-search-input")).toBeVisible({
     timeout: 30000,
   });

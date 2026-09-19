@@ -4,7 +4,6 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { useIsFlowReadOnly } from "@/contexts/permissionsContext";
 import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
-import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import useFlowStore from "@/stores/flowStore";
 import { usePlaygroundStore } from "@/stores/playgroundStore";
 import { useUtilityStore } from "@/stores/utilityStore";
@@ -193,13 +192,9 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
       document.removeEventListener("pointerdown", handleClickOutside, true);
   }, [isOpen, isDocked, isProcessing, onClose]);
   const handleAuthorizedSend = useCallback(
-    (
-      content: string,
-      model: AssistantModel | null,
-      sendMode: AssistantMode = mode,
-    ) => {
+    (content: string, model: AssistantModel | null) => {
       if (!canSendWithModel(model)) return;
-      void handleSend(content, model, { mode: sendMode });
+      void handleSend(content, model, { mode });
     },
     [canSendWithModel, handleSend, mode],
   );
@@ -275,58 +270,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     setAssistantProcessing(locksCanvas);
     return () => setAssistantProcessing(false);
   }, [locksCanvas, setAssistantProcessing]);
-
-  // Welcome hand-off: fire the stashed prompt once open with a model (localStorage
-  // read avoids racing ModelSelector auto-select), then clear to prevent replay.
-  const pendingMessage = useFlowBuilderWelcomeStore(
-    (state) => state.pendingMessage,
-  );
-  const clearPendingMessage = useFlowBuilderWelcomeStore(
-    (state) => state.clearPendingMessage,
-  );
-  useEffect(() => {
-    if (!isOpen || !pendingMessage || isReadOnly || !agenticExperienceEnabled)
-      return;
-    let saved: AssistantModel | null = null;
-    try {
-      const raw = localStorage.getItem("langflow-assistant-selected-model");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.provider && parsed.name) {
-          saved = parsed as AssistantModel;
-        }
-      }
-    } catch {
-      // localStorage may be unavailable (private browsing) — the pending
-      // welcome message stays around for a manual retry.
-    }
-    if (!saved || !canSendWithModel(saved)) return;
-    // The welcome screen asks what to build, so the hand-off is a build turn
-    // whatever mode the panel was last left in.
-    setMode("build");
-    handleAuthorizedSend(pendingMessage, saved, "build");
-    clearPendingMessage();
-  }, [
-    isOpen,
-    pendingMessage,
-    isReadOnly,
-    agenticExperienceEnabled,
-    canSendWithModel,
-    handleAuthorizedSend,
-    clearPendingMessage,
-    setMode,
-  ]);
-
-  // A welcome-overlay submit needs vertical room for the auto-sent message +
-  // reply, so lock a min-height instead of opening in tiny compact form.
-  const [openedWithPending, setOpenedWithPending] = useState(false);
-  useEffect(() => {
-    if (isOpen && pendingMessage) {
-      setOpenedWithPending(true);
-    } else if (!isOpen) {
-      setOpenedWithPending(false);
-    }
-  }, [isOpen, pendingMessage]);
 
   const { sessions, saveCurrentSession, switchSession, deleteSession } =
     useSessionHistory(sessionId, messages, loadSession);
@@ -474,10 +417,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
         "opacity-100 translate-y-0 max-w-[calc(100vw-2rem)]",
       );
 
-  // Welcome-submit opens enforce a 300px floor — compact mode's ~200px is too
-  // short for the auto-sent message + reply to be visible.
-  const pendingMinHeight = openedWithPending ? "18.75rem" : undefined;
-
   const containerStyle = isDocked
     ? { width: dockWidth, minWidth: "28.5rem", maxWidth: "50vw" }
     : useExpandedSize
@@ -485,16 +424,13 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
           width: panelSize.width,
           height: panelSize.height,
           minWidth: "28.5rem",
-          minHeight: pendingMinHeight,
         }
       : {
           width: panelSize.width,
           minWidth: "28.5rem",
           // Definite height (not just min-height) so the inner ``h-full`` column
           // can bottom-anchor the input, leaving room for the upward popover.
-          ...(isMentionOpen
-            ? { height: MENTION_PANEL_HEIGHT }
-            : { minHeight: pendingMinHeight }),
+          ...(isMentionOpen ? { height: MENTION_PANEL_HEIGHT } : {}),
         };
 
   return (

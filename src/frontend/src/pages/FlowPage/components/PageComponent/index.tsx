@@ -27,7 +27,6 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
 } from "@/components/core/canvasControlsComponent/fit-view-options";
-import { FlowBuilderWelcomeMount } from "@/components/core/flowBuilderWelcome/flow-builder-welcome-mount";
 import FlowToolbar from "@/components/core/flowToolbarComponent";
 import {
   NOTE_NODE_MIN_HEIGHT,
@@ -46,7 +45,6 @@ import useUploadFlow from "@/hooks/flows/use-upload-flow";
 import { useAddComponent } from "@/hooks/use-add-component";
 import InspectionPanel from "@/pages/FlowPage/components/InspectionPanel";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
-import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import { nodeColorsName } from "@/utils/styleUtils";
 import { isSupportedNodeTypes } from "@/utils/utils";
 import ExportModal from "../../../../modals/exportModal";
@@ -190,7 +188,6 @@ export default function Page({
 
   const previewLabel = useVersionPreviewStore((s) => s.previewLabel);
   const isPreviewActive = previewLabel !== null;
-  const isWelcomeOpen = useFlowBuilderWelcomeStore((state) => state.isOpen);
   const onNodesChange = useFlowStore((state) => state.onNodesChange);
   const onEdgesChange = useFlowStore((state) => state.onEdgesChange);
   const setNodes = useFlowStore((state) => state.setNodes);
@@ -1006,8 +1003,8 @@ export default function Page({
       {showCanvas ? (
         <>
           <div id="react-flow-id" className="h-full w-full bg-canvas relative">
-            {!isWelcomeOpen && <MemoizedSidebarTrigger />}
-            {!view && !isWelcomeOpen && (
+            <MemoizedSidebarTrigger />
+            {!view && (
               <>
                 <MemoizedCanvasControls
                   selectedNode={selectedNode}
@@ -1141,11 +1138,6 @@ export default function Page({
               </div>
             )}
             {isPreviewActive && <VersionPreviewOverlay />}
-            {/* Welcome overlay surfaces on freshly-created empty flows —
-                its visibility is driven entirely by the
-                ``flowBuilderWelcomeStore`` which is primed by the
-                "New Flow" button on the home page. */}
-            {!effectiveLocked && <FlowBuilderWelcomeMount />}
           </div>
         </>
       ) : (

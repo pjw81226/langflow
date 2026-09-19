@@ -64,12 +64,12 @@ export function useFitViewWhenMeasured(fitViewOptions?: FitViewOptions) {
       previous?.requestId !== fitViewRequest.id ||
       previous?.flowId !== currentFlowId;
 
-    // Opening a flow can change the canvas size after the fit: the welcome
-    // overlay hides the sidebar while it is up, so the canvas is wider for the
-    // fit and narrows the moment the overlay closes, leaving the graph framed
-    // for a viewport it no longer has. Correcting that is safe only while the
-    // viewport is still exactly where the fit put it — once the user has panned
-    // or zoomed, the framing is theirs and a later resize must not move it.
+    // Opening a flow can change the canvas size after the fit: a sidebar or
+    // panel that settles in right after it narrows the canvas, leaving the
+    // graph framed for a viewport it no longer has. Correcting that is safe
+    // only while the viewport is still exactly where the fit put it — once the
+    // user has panned or zoomed, the framing is theirs and a later resize must
+    // not move it.
     const resizedBeforeUserMovedViewport =
       !isNewRequest &&
       previous !== null &&

@@ -55,8 +55,8 @@ describe("useDeleteFlow", () => {
 
   it("should_keep_flow_created_while_delete_was_in_flight", async () => {
     flowsState.flows = [makeFlow("placeholder")];
-    // Simulate a flow landing in the store (e.g. a template flow created by
-    // the welcome overlay handoff) before the DELETE response arrives.
+    // Simulate a flow landing in the store (e.g. a template flow created from
+    // the templates modal) before the DELETE response arrives.
     mockMutate.mockImplementation((_vars, { onSuccess }) => {
       flowsState.flows = [makeFlow("placeholder"), makeFlow("template-flow")];
       onSuccess();

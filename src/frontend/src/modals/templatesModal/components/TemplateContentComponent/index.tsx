@@ -6,7 +6,6 @@ import { ENABLE_KNOWLEDGE_BASES } from "@/customization/feature-flags";
 import { useCustomNavigate } from "@/customization/hooks/use-custom-navigate";
 import { track } from "@/customization/utils/analytics";
 import useAddFlow from "@/hooks/flows/use-add-flow";
-import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { ForwardedIconComponent } from "../../../../components/common/genericIconComponent";
@@ -52,9 +51,6 @@ export default function TemplateContentComponent({
   const [filteredExamples, setFilteredExamples] = useState(examples);
   const addFlow = useAddFlow();
   const navigate = useCustomNavigate();
-  const dismissWelcomeForNavigation = useFlowBuilderWelcomeStore(
-    (state) => state.dismissForNavigation,
-  );
   const { folderId } = useParams();
   const myCollectionId = useFolderStore((state) => state.myCollectionId);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -90,8 +86,6 @@ export default function TemplateContentComponent({
     updateIds(example.data);
     addFlow({ flow: example })
       .then((id) => {
-        // Same tick as the navigate — see ``dismissForNavigation``.
-        dismissWelcomeForNavigation();
         navigate(`/flow/${id}/folder/${folderIdUrl}`);
       })
       .finally(() => {

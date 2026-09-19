@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { TID } from "../constants/testIds";
 import { TIMEOUTS } from "../constants/timeouts";
 
@@ -23,15 +23,12 @@ export const waitForNewProjectButton = async (
 };
 
 /**
- * Opens the templates modal from the projects page. Encapsulates the post-
- * 1.10 screen flow so future intermediate-screen changes only need to be
- * applied here:
+ * Opens the templates modal from the projects page. Encapsulates the screen
+ * flow so future intermediate-screen changes only need to be applied here:
  *   1. wait for the "new project" button,
  *   2. click it — both the header "New Flow" button and the empty-page CTA
- *      now navigate to a fresh flow with the welcome overlay,
- *   3. if the welcome overlay surfaces, click "Browse more templates" to
- *      open the templates modal,
- *   4. wait for the templates modal title to render.
+ *      open the templates modal directly,
+ *   3. wait for the templates modal title to render.
  *
  * Pass `fromEmptyPage: true` when the home page is in its empty state, where
  * the CTA carries the `new_project_btn_empty_page` test id instead of the
@@ -59,36 +56,11 @@ export const openTemplatesModal = async (
   }
   const modalSelector = `[data-testid="${TID.modalTitle}"]`;
   const modalTimeout = options?.modalTimeout ?? TIMEOUTS.standard;
-  const [createResponse] = await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/v1/flows/",
-      { timeout: modalTimeout },
-    ),
-    page
-      .getByTestId(
-        options?.fromEmptyPage ? TID.newProjectBtnEmptyPage : TID.newProjectBtn,
-      )
-      .click(),
-  ]);
-  expect(
-    createResponse.ok(),
-    `Creating a new flow returned ${createResponse.status()}`,
-  ).toBeTruthy();
-
-  await page.waitForURL(
-    (url) => /^\/flow\/[^/]+(?:\/folder\/[^/]+)?\/?$/.test(url.pathname),
-    { timeout: modalTimeout },
-  );
-  const browseMoreButton = page.getByRole("button", {
-    name: /browse more/i,
-  });
-  await browseMoreButton.waitFor({
-    state: "visible",
-    timeout: modalTimeout,
-  });
-  await browseMoreButton.click();
+  await page
+    .getByTestId(
+      options?.fromEmptyPage ? TID.newProjectBtnEmptyPage : TID.newProjectBtn,
+    )
+    .click();
 
   await page.waitForSelector(modalSelector, {
     timeout: modalTimeout,

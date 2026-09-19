@@ -22,7 +22,6 @@ import { useWebhookEvents } from "@/hooks/use-webhook-events";
 import { SaveChangesModal } from "@/modals/saveChangesModal";
 import useAlertStore from "@/stores/alertStore";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
-import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import { usePlaygroundStore } from "@/stores/playgroundStore";
 import { useShortcutsStore } from "@/stores/shortcuts";
 import { useTypesStore } from "@/stores/typesStore";
@@ -208,10 +207,6 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
   }, [blocker.state, isBuilding]);
 
   const isMobile = useIsMobile();
-  // When the welcome overlay is open, the FlowSidebarComponent should be
-  // completely hidden — the welcome paints its own faux rail and any flash
-  // of the real expanded sidebar is jarring on first paint.
-  const isWelcomeOpen = useFlowBuilderWelcomeStore((state) => state.isOpen);
   const isSlidingContainerOpen = usePlaygroundStore((state) => state.isOpen);
   const setSlidingContainerOpen = usePlaygroundStore(
     (state) => state.setIsOpen,
@@ -311,21 +306,8 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
                   segmentedSidebar={ENABLE_NEW_SIDEBAR}
                 >
                   <FlowSearchProvider>
-                    {/* FlowSidebarComponent - stays in place. Wrapped in a
-                      ``display: none`` container while the welcome is open
-                      so it never paints on first render (and never flashes
-                      while the welcome's open-effect catches up). The
-                      wrapper uses ``display: contents`` when visible so it
-                      doesn't break the parent flex layout. */}
-                    {!view && (
-                      <div
-                        style={{
-                          display: isWelcomeOpen ? "none" : "contents",
-                        }}
-                      >
-                        <FlowSidebarComponent isLoading={isLoading} />
-                      </div>
-                    )}
+                    {/* FlowSidebarComponent - stays in place */}
+                    {!view && <FlowSidebarComponent isLoading={isLoading} />}
 
                     <main
                       className={cn(

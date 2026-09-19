@@ -30,16 +30,6 @@ jest.mock("@/stores/assistantManagerStore", () => ({
     }),
 }));
 
-jest.mock("@/stores/flowBuilderWelcomeStore", () => ({
-  __esModule: true,
-  default: (
-    selector: (state: {
-      pendingMessage: string | null;
-      clearPendingMessage: jest.Mock;
-    }) => unknown,
-  ) => selector({ pendingMessage: null, clearPendingMessage: jest.fn() }),
-}));
-
 jest.mock("@/stores/flowStore", () => ({
   __esModule: true,
   default: (selector: (state: { currentFlow: { id: string } }) => unknown) =>

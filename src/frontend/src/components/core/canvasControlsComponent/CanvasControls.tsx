@@ -13,7 +13,6 @@ import {
 } from "@/components/core/assistantPanel/hooks/assistant-discovery-storage";
 import { Button } from "@/components/ui/button";
 import useAssistantManagerStore from "@/stores/assistantManagerStore";
-import useFlowBuilderWelcomeStore from "@/stores/flowBuilderWelcomeStore";
 import useFlowStore from "@/stores/flowStore";
 import { usePlaygroundStore } from "@/stores/playgroundStore";
 import type { AllNodeType } from "@/types/flow";
@@ -50,12 +49,9 @@ const CanvasControls = ({
   const assistantSidebarOpen = useAssistantManagerStore(
     (state) => state.assistantSidebarOpen,
   );
-  // While the FlowBuilderWelcome overlay is open, suppress the onboarding
-  // tooltip — it renders via Portal and would float over the welcome.
-  const isWelcomeOpen = useFlowBuilderWelcomeStore((state) => state.isOpen);
-  // Same reason as the welcome suppression: the playground sliding container
-  // renders above the canvas, but the tooltip's Portal escapes that stacking
-  // context and would float on top of the playground.
+  // While the playground is open, suppress the onboarding tooltip: the
+  // sliding container renders above the canvas, but the tooltip's Portal
+  // escapes that stacking context and would float on top of the playground.
   const isPlaygroundOpen = usePlaygroundStore((state) => state.isOpen);
 
   // Discovery state — once true, the "New" pill + onboarding tooltip never
@@ -121,7 +117,6 @@ const CanvasControls = ({
   const onboardingActive =
     !discovered &&
     !assistantSidebarOpen &&
-    !isWelcomeOpen &&
     !isPlaygroundOpen &&
     !locked &&
     tooltipVisible;

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AssistantPanel } from "../assistant-panel";
 import type { AssistantModel } from "../assistant-panel.types";
@@ -11,12 +11,10 @@ const SAVED_MODEL: AssistantModel = {
 };
 
 const mockHandleSend = jest.fn();
-const mockClearPendingMessage = jest.fn();
 const mockSetAssistantProcessing = jest.fn();
 let mockCatalogReady = true;
 let mockHasEnabledModels = true;
 let mockModelAllowed = true;
-let mockPendingMessage: string | null = null;
 
 const mockIsModelEnabled = (model: AssistantModel | null) =>
   mockModelAllowed &&
@@ -42,20 +40,6 @@ jest.mock("@/stores/assistantManagerStore", () => ({
     selector({
       setAssistantProcessing: mockSetAssistantProcessing,
       setAssistantDocked: jest.fn(),
-    }),
-}));
-
-jest.mock("@/stores/flowBuilderWelcomeStore", () => ({
-  __esModule: true,
-  default: (
-    selector: (state: {
-      pendingMessage: string | null;
-      clearPendingMessage: jest.Mock;
-    }) => unknown,
-  ) =>
-    selector({
-      pendingMessage: mockPendingMessage,
-      clearPendingMessage: mockClearPendingMessage,
     }),
 }));
 
@@ -173,35 +157,6 @@ describe("AssistantPanel scoped model authorization", () => {
     mockCatalogReady = true;
     mockHasEnabledModels = true;
     mockModelAllowed = true;
-    mockPendingMessage = null;
-  });
-
-  it("keeps a pending welcome message until the current flow catalog is ready", async () => {
-    mockCatalogReady = false;
-    mockPendingMessage = "build a flow";
-
-    const { rerender } = render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockHandleSend).not.toHaveBeenCalled();
-    expect(mockClearPendingMessage).not.toHaveBeenCalled();
-
-    mockCatalogReady = true;
-    rerender(<AssistantPanel isOpen onClose={jest.fn()} />);
-    await waitFor(() => expect(mockHandleSend).toHaveBeenCalled());
-  });
-
-  it("rejects a stale localStorage model when auto-sending after a scope switch", async () => {
-    mockModelAllowed = false;
-    mockPendingMessage = "build a flow";
-
-    const { rerender } = render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-    expect(mockHandleSend).not.toHaveBeenCalled();
-    expect(mockClearPendingMessage).not.toHaveBeenCalled();
-
-    mockModelAllowed = true;
-    rerender(<AssistantPanel isOpen onClose={jest.fn()} />);
-    await waitFor(() => expect(mockHandleSend).toHaveBeenCalled());
   });
 
   it("guards direct panel sends with current catalog membership", async () => {
@@ -253,22 +208,6 @@ describe("AssistantPanel scoped model authorization", () => {
         SAVED_MODEL,
         { mode: "build" },
       );
-    });
-
-    it("sends the welcome hand-off as a build turn even if ask was the last mode", async () => {
-      localStorage.setItem("langflow-assistant-mode", "ask");
-      mockPendingMessage = "build a flow";
-
-      render(<AssistantPanel isOpen onClose={jest.fn()} />);
-
-      await waitFor(() =>
-        expect(mockHandleSend).toHaveBeenCalledWith(
-          "build a flow",
-          SAVED_MODEL,
-          { mode: "build" },
-        ),
-      );
-      expect(localStorage.getItem("langflow-assistant-mode")).toBe("build");
     });
   });
 
