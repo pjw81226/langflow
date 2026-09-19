@@ -26,7 +26,6 @@ const GENERATING_STEPS: AgenticStepType[] = [
   "generating_plan",
   "generating_flow",
   "orchestrating",
-  "generating_document",
 ];
 
 // Intent-specific placeholder per generating step (no random rotation while
@@ -37,7 +36,6 @@ const GENERATING_PLACEHOLDER_KEY: Partial<Record<AgenticStepType, string>> = {
   generating_plan: "assistant.generating.plan",
   generating_flow: "assistant.generating.flow",
   orchestrating: "assistant.generating.orchestrating",
-  generating_document: "assistant.generating.document",
 };
 
 // Hook for rotating placeholder messages during post-generation processing

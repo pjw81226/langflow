@@ -23,7 +23,6 @@ const FLOW_BUILD_ICON_STEPS = new Set([
   "searching_components",
   "generating_plan",
   "generating_flow",
-  "generating_document",
   "orchestrating",
   "building_flow",
   "flow_built",

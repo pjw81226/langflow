@@ -5,7 +5,6 @@ import type {
   AgenticCancelledEvent,
   AgenticCompleteEvent,
   AgenticErrorEvent,
-  AgenticFileWrittenEvent,
   AgenticFlowPreviewEvent,
   AgenticFlowUpdateEvent,
   AgenticProgressEvent,
@@ -21,7 +20,6 @@ interface StreamCallbacks {
   onFlowPreview?: (event: AgenticFlowPreviewEvent) => void;
   onFlowUpdate?: (event: AgenticFlowUpdateEvent) => void;
   onToolStart?: (event: AgenticToolStartEvent) => void;
-  onFileWritten?: (event: AgenticFileWrittenEvent) => void;
   onError?: (event: AgenticErrorEvent) => void;
   onCancelled?: (event: AgenticCancelledEvent) => void;
 }
@@ -72,9 +70,6 @@ function processSSELine(
       break;
     case "tool_start":
       callbacks.onToolStart?.(event);
-      break;
-    case "file_written":
-      callbacks.onFileWritten?.(event);
       break;
     case "error":
       callbacks.onError?.(event);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import langflowAssistantIcon from "@/assets/langflow_assistant.svg";
 import MessageMetadata from "@/components/common/messageMetadataComponent";
@@ -10,7 +10,6 @@ import { AssistantBuildTasks } from "./assistant-build-tasks";
 import { AssistantMessageBody } from "./assistant-message-body";
 import { AssistantModelNotice } from "./assistant-model-notice";
 import { AssistantTestResult } from "./assistant-test-result";
-import { FileContentModal } from "./file-content-modal";
 
 interface AssistantMessageItemProps {
   message: AssistantMessage;
@@ -50,12 +49,10 @@ interface AssistantMessageItemProps {
 }
 
 // Steps where AssistantLoadingState replaces the simple thinking dots.
-// generating_document is OUT: dots → file card directly, no morphing glitch.
 const RICH_LOADING_STEPS = [
   "generating_component",
   "generating_plan",
   "generating_flow",
-  "generating_document",
   "orchestrating",
   "extracting_code",
   "validating",
@@ -109,13 +106,8 @@ export function AssistantMessageItem({
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
 
-  // Modal state for "Open" on a file card. Single-modal-at-a-time per message
-  // so the user always has clear focus on which file they're inspecting.
-  const [openFilePath, setOpenFilePath] = useState<string | null>(null);
-
-  // Randomized once per message; manage_files overrides with the static
-  // "Generating document..." so the dots match the input placeholder.
-  const randomThinking = useMemo(() => getRandomThinkingMessage(), []);
+  // Randomized once per message.
+  const thinkingMessage = useMemo(() => getRandomThinkingMessage(), []);
 
   // Memoized misclassified-intent detector (regex per token was hot); must stay
   // above the `message.hidden` early return to keep the hook count stable.
@@ -132,11 +124,6 @@ export function AssistantMessageItem({
   if (message.hidden) {
     return null;
   }
-  const thinkingMessage =
-    message.progress?.step === "generating_document"
-      ? message.progress.message || t("assistant.generating.document")
-      : randomThinking;
-
   // True when the rich loading state (component or flow build) should render
   // instead of the simple thinking indicator.
   const showsRichLoadingState =
@@ -244,7 +231,6 @@ export function AssistantMessageItem({
               onResetPlan={onResetPlan}
               onRetry={onRetry}
               onAcknowledgeValidation={onAcknowledgeValidation}
-              onOpenFile={(path) => setOpenFilePath(path)}
             />
           </div>
           {!isUser && message.status === "complete" && message.testResult && (
@@ -256,16 +242,6 @@ export function AssistantMessageItem({
           )}
         </div>
       </div>
-      {openFilePath && (
-        <FileContentModal
-          path={openFilePath}
-          content={
-            message.writtenFiles?.find((f) => f.path === openFilePath)?.content
-          }
-          open={openFilePath !== null}
-          onClose={() => setOpenFilePath(null)}
-        />
-      )}
     </div>
   );
 }

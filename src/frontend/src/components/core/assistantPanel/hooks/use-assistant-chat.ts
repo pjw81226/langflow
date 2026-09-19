@@ -489,21 +489,6 @@ export function useAssistantChat(
                 inProgressTask: inProgressTaskFromEvent(event),
               }));
             },
-            onFileWritten: (event) => {
-              // One WrittenFile entry per successful write/edit, in arrival order.
-              updateMessage(assistantMessageId, (msg) => ({
-                writtenFiles: [
-                  ...(msg.writtenFiles ?? []),
-                  {
-                    action: event.action,
-                    path: event.path,
-                    size: event.size,
-                    receivedAt: Date.now(),
-                    content: event.content,
-                  },
-                ],
-              }));
-            },
             onComplete: (event) => {
               const planMsgId = autoApprovePlanRef.current;
               if (planMsgId) {

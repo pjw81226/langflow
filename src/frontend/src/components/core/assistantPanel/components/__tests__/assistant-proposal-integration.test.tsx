@@ -52,9 +52,6 @@ jest.mock("@xyflow/react", () => ({
 jest.mock("../assistant-component-result", () => ({
   AssistantComponentResult: () => <div data-testid="component-result-mock" />,
 }));
-jest.mock("../assistant-file-card", () => ({
-  AssistantFileCard: () => <div data-testid="file-card-mock" />,
-}));
 jest.mock("../assistant-flow-edit-card", () => ({
   FlowEditCarousel: () => <div data-testid="flow-edit-mock" />,
 }));

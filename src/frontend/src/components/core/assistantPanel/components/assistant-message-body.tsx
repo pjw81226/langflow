@@ -21,7 +21,6 @@ import type { AssistantMessage } from "../assistant-panel.types";
 import { ChatMarkdown } from "../helpers/chat-markdown";
 import { AssistantComponentResult } from "./assistant-component-result";
 import { AssistantErrorDetails } from "./assistant-error-details";
-import { AssistantFileCard } from "./assistant-file-card";
 import { FlowEditCarousel } from "./assistant-flow-edit-card";
 import { AssistantFlowPreview } from "./assistant-flow-preview";
 import { AssistantLoadingState } from "./assistant-loading-state";
@@ -54,8 +53,6 @@ export interface AssistantMessageBodyProps {
   onRetry?: (messageId: string) => void;
   /** Persist the validation-gate acknowledgement onto the message itself. */
   onAcknowledgeValidation?: (messageId: string) => void;
-  /** Callback when the user clicks Open on a written file card. */
-  onOpenFile?: (path: string) => void;
 }
 
 export function AssistantMessageBody({
@@ -73,7 +70,6 @@ export function AssistantMessageBody({
   onResetPlan,
   onRetry,
   onAcknowledgeValidation,
-  onOpenFile,
 }: AssistantMessageBodyProps) {
   const { t } = useTranslation();
   const isStreaming = message.status === "streaming";
@@ -81,7 +77,6 @@ export function AssistantMessageBody({
     message.result?.validated && message.result?.componentCode;
   const hasValidationError =
     message.result?.validated === false && message.result?.validationError;
-  const hasWrittenFiles = (message.writtenFiles?.length ?? 0) > 0;
 
   // skip-all pre-sets the gate to "complete"; validationAcknowledged is the
   // persisted twin so the gate doesn't reappear on remount (panel close+reopen).
@@ -122,7 +117,7 @@ export function AssistantMessageBody({
   ]);
 
   // Detailed loading state during component generation, until the validation
-  // animation completes. manage_files skips the gate — non-destructive action.
+  // animation completes.
   const showLoadingState =
     (isGeneratingCode && message.progress) ||
     ((hasValidatedResult || hasValidationError) &&
@@ -199,27 +194,6 @@ export function AssistantMessageBody({
         result={message.result}
         onApprove={() => onApprove?.(message.id)}
       />
-    );
-  }
-
-  // manage_files: render one card per persisted file. No gate — non-
-  // destructive action; the user can Open/Download directly.
-  if (hasWrittenFiles && message.writtenFiles) {
-    const cleanContent = message.content
-      ?.replace(/```\w*\s*[\s\S]*?```/g, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return (
-      <div className="flex flex-col gap-3">
-        {cleanContent && <ChatMarkdown>{cleanContent}</ChatMarkdown>}
-        {message.writtenFiles.map((file) => (
-          <AssistantFileCard
-            key={`${file.action}-${file.path}-${file.receivedAt}`}
-            file={file}
-            onOpen={(f) => onOpenFile?.(f.path)}
-          />
-        ))}
-      </div>
     );
   }
 
