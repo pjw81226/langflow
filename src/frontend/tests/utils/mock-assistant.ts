@@ -28,6 +28,9 @@ class UppercaseText(Component):
         return Message(text=self.input_value.upper())
 `;
 
+export const PROPOSED_PROMPT =
+  "You are a friendly assistant. Answer in three short bullet points.";
+
 function sse(...events: object[]): string {
   return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
 }
@@ -49,6 +52,10 @@ export type AssistantMockController = {
 /**
  * Install deterministic browser-level contracts for the Assistant's model
  * catalog, SSE transport, session reset, and generated-component validation.
+ *
+ * The stream answers by the request's mode: a prompt turn gets a proposed
+ * prompt for the field it named, a component turn a validated component, and
+ * anything else a Q&A answer.
  */
 export async function mockAssistant(
   page: Page,
@@ -108,6 +115,10 @@ export async function mockAssistant(
   await page.route("**/api/v1/agentic/assist/stream", async (route) => {
     const requestBody = route.request().postDataJSON() as {
       input_value?: string;
+      mode?: string;
+      component_id?: string;
+      field_name?: string;
+      field_value?: string;
     };
     const input = requestBody.input_value ?? "";
 
@@ -130,35 +141,70 @@ export async function mockAssistant(
       return;
     }
 
-    const wantsComponent = /create\s+(?:a\s+)?(?:simple\s+)?component/i.test(
-      input,
-    );
-    const body = wantsComponent
-      ? sse({
-          event: "complete",
-          data: {
-            class_name: "UppercaseText",
-            component_code: COMPONENT_CODE,
-            duration_seconds: 0.01,
-            result: "The deterministic component is ready for approval.",
-            usage: { input_tokens: 8, output_tokens: 12, total_tokens: 20 },
-            validated: true,
-            validation_attempts: 1,
-          },
-        })
-      : sse(
-          { event: "token", chunk: "Langflow is a deterministic " },
-          { event: "token", chunk: "visual workflow builder." },
-          {
-            event: "complete",
-            data: {
-              duration_seconds: 0.01,
-              result: "Langflow is a deterministic visual workflow builder.",
-              usage: { input_tokens: 6, output_tokens: 7, total_tokens: 13 },
-              validated: false,
+    const wantsComponent =
+      requestBody.mode === "component" ||
+      /create\s+(?:a\s+)?(?:simple\s+)?component/i.test(input);
+    const body =
+      requestBody.mode === "prompt"
+        ? sse(
+            {
+              event: "progress",
+              step: "writing_prompt",
+              attempt: 1,
+              max_attempts: 1,
             },
-          },
-        );
+            {
+              event: "complete",
+              data: {
+                duration_seconds: 0.01,
+                mode: "prompt",
+                notices: [],
+                prompt_proposal: {
+                  component_id: requestBody.component_id ?? null,
+                  component_name: null,
+                  field: requestBody.field_name ?? null,
+                  field_label: null,
+                  new_value: PROPOSED_PROMPT,
+                  old_value: requestBody.component_id
+                    ? (requestBody.field_value ?? "")
+                    : null,
+                },
+                result: "Here is a prompt for the agent.",
+                usage: { input_tokens: 9, output_tokens: 14, total_tokens: 23 },
+              },
+            },
+          )
+        : wantsComponent
+          ? sse({
+              event: "complete",
+              data: {
+                class_name: "UppercaseText",
+                component_code: COMPONENT_CODE,
+                duration_seconds: 0.01,
+                result: "The deterministic component is ready for approval.",
+                usage: { input_tokens: 8, output_tokens: 12, total_tokens: 20 },
+                validated: true,
+                validation_attempts: 1,
+              },
+            })
+          : sse(
+              { event: "token", chunk: "Langflow is a deterministic " },
+              { event: "token", chunk: "visual workflow builder." },
+              {
+                event: "complete",
+                data: {
+                  duration_seconds: 0.01,
+                  result:
+                    "Langflow is a deterministic visual workflow builder.",
+                  usage: {
+                    input_tokens: 6,
+                    output_tokens: 7,
+                    total_tokens: 13,
+                  },
+                  validated: false,
+                },
+              },
+            );
 
     await route.fulfill({
       body,

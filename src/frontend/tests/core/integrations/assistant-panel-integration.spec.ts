@@ -3,6 +3,7 @@ import { openStarterProject } from "../../utils/flow/open-starter-project";
 import {
   type AssistantMockController,
   mockAssistant,
+  PROPOSED_PROMPT,
 } from "../../utils/mock-assistant";
 
 test.describe("Assistant Panel Integration", { tag: ["@release"] }, () => {
@@ -22,6 +23,8 @@ test.describe("Assistant Panel Integration", { tag: ["@release"] }, () => {
   test("should answer a Q&A question from the mocked SSE stream", async ({
     page,
   }) => {
+    // The panel opens in Component mode.
+    await page.getByTestId("assistant-mode-ask").click();
     const textarea = page.getByTestId("assistant-input-textarea");
     await textarea.fill("What is Langflow? Answer in one sentence.");
     await page.getByTestId("assistant-send-button").click();
@@ -81,6 +84,33 @@ test.describe("Assistant Panel Integration", { tag: ["@release"] }, () => {
     await expect(dialog).not.toBeVisible();
   });
 
+  test("should write a prompt that can only be copied when no field can take it", async ({
+    page,
+  }) => {
+    await page.getByTestId("assistant-mode-prompt").click();
+    // Basic Prompting feeds the model's system message from the Prompt
+    // Template, so no field on the canvas can take a prompt.
+    await expect(
+      page.getByTestId("assistant-prompt-target-empty"),
+    ).toBeVisible();
+
+    const textarea = page.getByTestId("assistant-input-textarea");
+    await textarea.fill("Have the model answer in three bullet points");
+    await page.getByTestId("assistant-send-button").click();
+
+    const card = page.getByTestId("assistant-prompt-proposal");
+    await expect(card).toContainText(PROPOSED_PROMPT);
+    await expect(
+      page.getByTestId("assistant-prompt-proposal-copy"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("assistant-prompt-proposal-apply"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId("assistant-prompt-proposal-reason"),
+    ).toBeVisible();
+  });
+
   test("should stop a pending generation", async ({ page }) => {
     const textarea = page.getByTestId("assistant-input-textarea");
     await textarea.fill(
@@ -101,6 +131,7 @@ test.describe("Assistant Panel Integration", { tag: ["@release"] }, () => {
   test("should clear history and reset the backend session", async ({
     page,
   }) => {
+    await page.getByTestId("assistant-mode-ask").click();
     const textarea = page.getByTestId("assistant-input-textarea");
     await textarea.fill("Say hello");
     await page.getByTestId("assistant-send-button").click();
