@@ -465,6 +465,10 @@ build_component_index: ## build the component index with dynamic loading
 	@echo 'Building component index'
 	LFX_DEV=1 uv run python scripts/build_component_index.py
 
+build_assistant_docs_index: ## rebuild the docs search index the Assistant's Ask mode answers from
+	@echo 'Building the Assistant docs index from docs/docs'
+	uv run python scripts/build_assistant_docs_index.py
+
 lfx_build: ## build the LFX package
 	@echo 'Building LFX package'
 	@cd src/lfx && make build
