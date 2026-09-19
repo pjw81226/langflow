@@ -216,12 +216,17 @@ def _scan_flow_component_code(payload: dict) -> list[str]:
     return violations
 
 
-async def run_working_flow(*, flow_data: dict, flow_id: str, user_id: str | None) -> dict:
+async def run_working_flow(
+    *, flow_data: dict, flow_id: str, user_id: str | None, session_id: str | None = None
+) -> dict:
     """Run the assistant's current canvas flow in-process and return its result.
 
     Builds a graph from the in-memory canvas data (so unsaved assistant edits
     are honored) and runs it with the current configured component values
     (no input override).
+
+    ``session_id`` isolates the run's messages and memory. Without it the graph
+    falls back to the flow id, which is the Playground's default session.
 
     Returns ``{"result": <text>, "metrics": {...}}`` on success, or
     ``{"error": <message>}`` on failure/timeout — never raises, never leaks
@@ -243,7 +248,7 @@ async def run_working_flow(*, flow_data: dict, flow_id: str, user_id: str | None
         graph = await build_graph_from_data(flow_id, payload, flow_name=flow_name, user_id=user_id)
         with execution_protocol("agentic"):
             run_outputs, _session_id = await asyncio.wait_for(
-                run_graph_internal(graph, flow_id, inputs=[], outputs=[]),
+                run_graph_internal(graph, flow_id, session_id=session_id, inputs=[], outputs=[]),
                 timeout=RUN_TIMEOUT_SECONDS,
             )
     except (TimeoutError, asyncio.TimeoutError):

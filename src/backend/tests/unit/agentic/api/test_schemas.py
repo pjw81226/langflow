@@ -47,6 +47,18 @@ class TestAssistantRequest:
         with pytest.raises(ValidationError):
             AssistantRequest(flow_id="test-flow-id", mode="chat")
 
+    def test_should_accept_the_test_flow_action_without_a_message(self):
+        """The Test button sends no text."""
+        request = AssistantRequest(flow_id="test-flow-id", action="test_flow")
+
+        assert request.action == "test_flow"
+        assert request.input_value is None
+
+    def test_should_default_to_no_action_and_reject_unknown_ones(self):
+        assert AssistantRequest(flow_id="test-flow-id").action is None
+        with pytest.raises(ValidationError):
+            AssistantRequest(flow_id="test-flow-id", action="delete_flow")
+
     def test_should_create_with_all_fields(self):
         """Should create request with all fields populated."""
         request = AssistantRequest(

@@ -61,6 +61,9 @@ class AssistantRequest(BaseModel):
     # Panel mode chosen by the user. None keeps the classifier-driven routing;
     # "ask" is a read-only help turn that never changes the canvas.
     mode: Literal["build", "ask"] | None = None
+    # "test_flow" runs the flow on the canvas once and returns a test_result. It is
+    # not an agent turn: no classification, no LLM, and input_value is ignored.
+    action: Literal["test_flow"] | None = None
 
     @field_validator("input_value")
     @classmethod

@@ -76,3 +76,21 @@ async def test_assist_stream_forwards_the_mode(mode):
             pass
 
     assert captured["mode"] == mode
+
+
+@pytest.mark.usefixtures("_endpoint_env")
+@pytest.mark.parametrize("action", ["test_flow", None])
+async def test_assist_stream_forwards_the_action(action):
+    captured: dict = {}
+
+    async def fake_stream(**kwargs):
+        captured.update(kwargs)
+        yield "data: {}\n\n"
+
+    http_request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    with patch(f"{_ROUTER}.execute_flow_with_validation_streaming", fake_stream):
+        response = await assistant_router.assist_stream(_request(action=action), http_request, _user(), AsyncMock())
+        async for _chunk in response.body_iterator:
+            pass
+
+    assert captured["action"] == action

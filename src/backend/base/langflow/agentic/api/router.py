@@ -410,6 +410,7 @@ async def assist_stream(
                 history_limit=request.history_limit,
                 iterations_limit=request.iterations_limit,
                 mode=request.mode,
+                action=request.action,
             ):
                 yield event
 

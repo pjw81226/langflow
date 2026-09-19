@@ -8,7 +8,7 @@ import copy
 import os
 from contextlib import aclosing
 from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import HTTPException
 from lfx.base.models.model_remediation import cached_overrides, find_remediation, remember, restore_overrides
@@ -81,6 +81,8 @@ from langflow.agentic.services.flow_structural_validation import (
     FLOW_STRUCTURE_RETRY_TEMPLATE,
     structural_failures,
 )
+from langflow.agentic.services.flow_test import run_flow_test
+from langflow.agentic.services.flow_test import summarize as summarize_flow_test
 from langflow.agentic.services.flow_test_result import from_verification as test_result_from_verification
 from langflow.agentic.services.flow_test_result import skipped as test_result_skipped
 from langflow.agentic.services.flow_types import (
@@ -690,8 +692,12 @@ async def execute_flow_with_validation_streaming(
     history_limit: int | None = None,
     iterations_limit: int | None = None,
     mode: AssistantMode | None = None,
+    action: Literal["test_flow"] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Execute flow with validation, yielding SSE progress and token events.
+
+    ``action="test_flow"`` is the panel's Test button: the flow on the canvas is run once
+    and its ``test_result`` returned. No agent runs, so ``input_value`` is ignored.
 
     ``mode`` is the panel mode the user picked. ``None`` and ``"build"`` keep the
     classifier-driven routing. ``"ask"`` is a read-only help turn: no intent
@@ -794,6 +800,25 @@ async def execute_flow_with_validation_streaming(
         if mode:
             payload["mode"] = mode
         return format_complete_event(payload)
+
+    if action == "test_flow":
+        # The Test button. Deterministic on purpose: the canvas flow is run once and
+        # reported, with no classifier and no agent deciding what "test" means.
+        reset_working_flow()
+        flow_id = global_variables.get("FLOW_ID")
+        try:
+            await _get_current_flow_summary(flow_id, user_id=user_id)  # loads the canvas, owner-checked
+            yield format_progress_event("verifying_flow", 1, 1, message="Testing the flow...")
+            test_result = await run_flow_test(flow=get_working_flow(), flow_id=flow_id, user_id=user_id)
+        finally:
+            reset_working_flow()
+        summary = summarize_flow_test(test_result)
+        # So a follow-up question ("why did it fail?") has the outcome in its history.
+        record_conversation_turn(
+            user_id=user_id, session_id=session_id, user_input="Test this flow.", assistant_response=summary
+        )
+        yield _complete({"result": summary, "test_result": test_result})
+        return
 
     # Layer 1: Input sanitization (before any LLM call)
     sanitization = sanitize_input(input_value)
