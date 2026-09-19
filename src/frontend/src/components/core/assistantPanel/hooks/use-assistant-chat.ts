@@ -36,16 +36,6 @@ import {
 } from "../helpers/verification";
 import { commandAckMessages } from "./command-ack";
 import {
-  parseHistoryCommand,
-  readHistoryLimit,
-  writeHistoryLimit,
-} from "./history-storage";
-import {
-  parseIterationsCommand,
-  readIterationsLimit,
-  writeIterationsLimit,
-} from "./iterations-storage";
-import {
   hasExplicitSkipAll,
   markSkipAllExplicit,
   readSkipAll,
@@ -118,10 +108,6 @@ export function useAssistantChat(
     skipAllRef.current = autoApplyDefault;
     setSkipAll(autoApplyDefault);
   }, [autoApplyDefault]);
-  // `/history N` memory window; null = backend defaults. Ref for same-tick reads.
-  const historyLimitRef = useRef<number | null>(readHistoryLimit());
-  // `/iterations N` step budget; null = backend default (30). Ref for same-tick reads.
-  const iterationsLimitRef = useRef<number | null>(readIterationsLimit());
   // Auto-approve queue: a ref so handlers see the value in the same tick.
   const autoApprovePlanRef = useRef<string | null>(null);
   // Lazy ref: a direct handleSend dep on handleApprovePlan would be circular.
@@ -203,37 +189,6 @@ export function useAssistantChat(
         setMessages((prev) => [
           ...prev,
           ...commandAckMessages(content, announcement),
-        ]);
-        return;
-      }
-
-      // `/history N` sets the memory window; local command, never sent.
-      const historyCmd = parseHistoryCommand(content, historyLimitRef.current);
-      if (historyCmd) {
-        if (historyCmd.changed) {
-          historyLimitRef.current = historyCmd.limit;
-          writeHistoryLimit(historyCmd.limit);
-        }
-        setMessages((prev) => [
-          ...prev,
-          ...commandAckMessages(content, historyCmd.announcement),
-        ]);
-        return;
-      }
-
-      // `/iterations N` sets the Agent step budget; local command, never sent.
-      const iterationsCmd = parseIterationsCommand(
-        content,
-        iterationsLimitRef.current,
-      );
-      if (iterationsCmd) {
-        if (iterationsCmd.changed) {
-          iterationsLimitRef.current = iterationsCmd.limit;
-          writeIterationsLimit(iterationsCmd.limit);
-        }
-        setMessages((prev) => [
-          ...prev,
-          ...commandAckMessages(content, iterationsCmd.announcement),
         ]);
         return;
       }
@@ -332,8 +287,6 @@ export function useAssistantChat(
             provider: model?.provider,
             model_name: model?.name,
             session_id: sessionIdRef.current,
-            history_limit: historyLimitRef.current ?? undefined,
-            iterations_limit: iterationsLimitRef.current ?? undefined,
             mode: turnMode,
             ...(turnAction ? { action: turnAction } : {}),
             ...(skipAllRef.current ? { auto_apply: true } : {}),

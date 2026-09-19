@@ -204,6 +204,9 @@ describe("useAssistantChat", () => {
         model_name: "gpt-4",
       });
       expect(request.session_id).toBeDefined();
+      // The /history and /iterations commands are gone: the backend owns both.
+      expect(request).not.toHaveProperty("history_limit");
+      expect(request).not.toHaveProperty("iterations_limit");
       expect(signal).toBeInstanceOf(AbortSignal);
     });
 

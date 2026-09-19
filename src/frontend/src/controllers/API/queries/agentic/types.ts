@@ -261,10 +261,6 @@ export interface AgenticAssistRequest {
   provider?: string;
   max_retries?: number;
   session_id?: string;
-  history_limit?: number;
-  /** Agent step budget for this turn (`/iterations N`); the backend clamps to
-   * 1–200 and falls back to the flow default when absent. */
-  iterations_limit?: number;
   /** Absent means "build". A backend without mode support ignores the field. */
   mode?: AssistantMode;
   /** "test_flow" runs the canvas flow once instead of starting an agent turn. */
