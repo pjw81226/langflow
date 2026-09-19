@@ -7,9 +7,6 @@ tool that adds, connects, configures, builds or runs anything: that absence, not
 the prompt, is what guarantees an Ask turn never changes the canvas.
 """
 
-from lfx.components.input_output import ChatInput, ChatOutput
-from lfx.components.models_and_agents import AgentComponent
-from lfx.graph import Graph
 from lfx.mcp.flow_builder_tools import (
     DescribeComponentType,
     DescribeFlowIO,
@@ -18,7 +15,7 @@ from lfx.mcp.flow_builder_tools import (
     SearchComponentTypes,
 )
 
-from langflow.agentic.flows.model_config import build_model_config
+from langflow.agentic.flows.assistant_agent import CONTENT_POLICY, build_agent_graph
 from langflow.agentic.services.docs_tools import ReadDoc, SearchDocs
 
 # Every tool the Ask agent may hold, by the name the model sees. A test compares
@@ -39,7 +36,8 @@ ASK_TOOL_NAMES = frozenset(
 # budget keeps a confused run short instead of letting it wander for 30 steps.
 ASK_MAX_ITERATIONS = 8
 
-ASK_ASSISTANT_PROMPT = """\
+ASK_ASSISTANT_PROMPT = (
+    """\
 You are the Langflow Assistant in ASK mode: a read-only helper for people who are not software \
 developers. You explain how to use Langflow, what the components on the user's canvas do, and why \
 something failed.
@@ -96,7 +94,10 @@ asked for more.
 - Plain punctuation: commas, colons and periods. No em dashes and no middle dots.
 - End with "Source:" and markdown links (page title - section) using only URLs returned by the \
 tools. If no documentation was used, omit the line. Never invent a link.
+
 """
+    + CONTENT_POLICY
+)
 
 
 async def build_toolkit() -> list:
@@ -120,46 +121,13 @@ async def get_graph(
     provider: str | None = None,
     model_name: str | None = None,
     api_key_var: str | None = None,
-    iterations_limit: int | None = None,
-) -> Graph:
-    """Create and return the AskAssistant graph.
-
-    ``iterations_limit`` (the ``/iterations N`` preference) can lower the step
-    budget but never raise it past ``ASK_MAX_ITERATIONS``: that preference is
-    sized for multi-step builds.
-    """
-    import copy
-
-    provider = provider or "OpenAI"
-    model_name = model_name or "gpt-4o"
-    step_budget = ASK_MAX_ITERATIONS
-    if iterations_limit is not None:
-        step_budget = max(1, min(int(iterations_limit), ASK_MAX_ITERATIONS))
-
-    chat_input = ChatInput()
-    chat_input.set(sender="User", sender_name="User")
-
-    agent = AgentComponent()
-    agent.set_input_value("model", copy.deepcopy(build_model_config(provider, model_name)))
-    agent_config = {
-        "input_value": chat_input.message_response,
-        "system_prompt": ASK_ASSISTANT_PROMPT,
-        "tools": await build_toolkit(),
-        "temperature": 0.1,
-        "max_iterations": step_budget,
-        # The Agent would otherwise add a date tool of its own at run time, outside
-        # the allow-list above. No Langflow question depends on today's date.
-        "add_current_date_tool": False,
-    }
-    if api_key_var:
-        agent_config["api_key"] = api_key_var
-    agent.set(**agent_config)
-
-    chat_output = ChatOutput()
-    chat_output.set(
-        input_value=agent.message_response,
-        sender="Machine",
-        sender_name="AI",
+):
+    """Create and return the AskAssistant graph."""
+    return build_agent_graph(
+        system_prompt=ASK_ASSISTANT_PROMPT,
+        tools=await build_toolkit(),
+        max_iterations=ASK_MAX_ITERATIONS,
+        provider=provider,
+        model_name=model_name,
+        api_key_var=api_key_var,
     )
-
-    return Graph(chat_input, chat_output)

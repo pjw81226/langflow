@@ -38,6 +38,9 @@ LANGFLOW_ASSISTANT_FLOW = "LangflowAssistant.json"
 FLOW_BUILDER_ASSISTANT_FLOW = "flow_builder_assistant"
 # Read-only Q&A agent grounded on the bundled docs index (the panel's Ask mode).
 ASK_ASSISTANT_FLOW = "ask_assistant"
+# Writers behind the panel's Component and Prompt tabs.
+COMPONENT_WRITER_FLOW = "component_writer"
+PROMPT_WRITER_FLOW = "prompt_writer"
 TRANSLATION_FLOW = "translation_flow.py"
 
 # Verbatim text the frontend sends when the user clicks Continue on a

@@ -2,12 +2,13 @@
 
 The panel promises that an Ask turn never changes the canvas. The prompt says so
 too, but a prompt is a request. What actually guarantees it is that the agent is
-never handed a tool that can add, connect, configure, build or run anything.
+never handed a tool that can add, connect, configure, build or run anything; the
+shared checks for that live in test_assistant_agents.py.
 """
 
 from __future__ import annotations
 
-from langflow.agentic.flows import ask_assistant
+from langflow.agentic.flows import assistant_agent
 from langflow.agentic.flows.ask_assistant import (
     ASK_ASSISTANT_PROMPT,
     ASK_MAX_ITERATIONS,
@@ -15,44 +16,12 @@ from langflow.agentic.flows.ask_assistant import (
     build_toolkit,
     get_graph,
 )
-from langflow.agentic.flows.flow_builder_assistant import build_toolkit as build_flow_builder_toolkit
-
-# Every tool of the flow builder that changes the canvas, the workspace or runs a flow.
-MUTATING_TOOL_NAMES = {
-    "add_component",
-    "remove_component",
-    "connect_components",
-    "configure_component",
-    "build_flow",
-    "run_flow",
-    "use_template",
-    "propose_plan",
-    "propose_field_edit",
-    "generate_component",
-    "write_file",
-    "edit_file",
-}
 
 
 async def test_the_toolkit_is_exactly_the_read_only_allow_list():
     names = {tool.name for tool in await build_toolkit()}
 
     assert names == ASK_TOOL_NAMES
-
-
-async def test_the_toolkit_holds_no_tool_that_can_change_anything():
-    names = {tool.name for tool in await build_toolkit()}
-
-    assert not names & MUTATING_TOOL_NAMES
-
-
-async def test_the_list_of_mutating_tools_is_the_flow_builders_own():
-    """Guards the guard: a mutating tool renamed upstream must not slip past the check above."""
-    builder_names = {tool.name for tool in await build_flow_builder_toolkit()}
-    read_only_shared = ASK_TOOL_NAMES - {"search_docs", "read_doc"}
-    sandbox_reads = {"read_file", "glob_search", "grep_search"}
-
-    assert builder_names - read_only_shared - sandbox_reads == MUTATING_TOOL_NAMES
 
 
 def test_the_prompt_states_the_contract_the_panel_relies_on():
@@ -76,19 +45,17 @@ async def test_the_graph_wires_chat_input_agent_and_chat_output():
     assert vertex_types == ["Agent", "Chat Input", "Chat Output"]
 
 
-async def test_the_step_budget_can_be_lowered_but_never_raised(monkeypatch):
+async def test_the_step_budget_is_fixed(monkeypatch):
     captured: list[int] = []
-    original_set = ask_assistant.AgentComponent.set
+    original_set = assistant_agent.AgentComponent.set
 
     def spy(self, **kwargs):
         if "max_iterations" in kwargs:
             captured.append(kwargs["max_iterations"])
         return original_set(self, **kwargs)
 
-    monkeypatch.setattr(ask_assistant.AgentComponent, "set", spy)
+    monkeypatch.setattr(assistant_agent.AgentComponent, "set", spy)
 
     await get_graph(provider="OpenAI", model_name="gpt-test")
-    await get_graph(provider="OpenAI", model_name="gpt-test", iterations_limit=3)
-    await get_graph(provider="OpenAI", model_name="gpt-test", iterations_limit=200)
 
-    assert captured == [ASK_MAX_ITERATIONS, 3, ASK_MAX_ITERATIONS]
+    assert captured == [ASK_MAX_ITERATIONS]

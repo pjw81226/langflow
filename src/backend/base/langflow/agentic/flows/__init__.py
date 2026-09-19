@@ -1,23 +1,11 @@
-"""Langflow Agentic Flows.
+"""Langflow Assistant flows.
 
-This package contains flow definitions for the Langflow Assistant feature.
+Each module defines a ``get_graph`` the flow executor loads by file name:
 
-Available flows:
-- translation_flow: Intent classification and translation flow (Python)
-- flow_builder_assistant: Flow building + sandboxed file I/O (Python). Handles
-  both ``build_flow`` and ``manage_files`` intents; the FileSystemTool
-  toolkit lets the agent write/edit documentation files when asked.
-- LangflowAssistant.json: Main assistant flow for Q&A and component generation (JSON)
-- ask_assistant: Read-only Q&A agent for the panel's Ask mode, grounded on the
-  bundled docs index (Python)
+- ask_assistant: read-only Q&A grounded on the bundled docs index (Ask tab)
+- component_writer: writes one custom component per request (Component tab)
+- prompt_writer: writes the instructions of an Agent or Language Model (Prompt tab)
+- assistant_agent: the Chat Input -> Agent -> Chat Output graph all three share
+
+The package deliberately re-exports nothing, so loading one flow never imports another.
 """
-
-from langflow.agentic.flows.ask_assistant import get_graph as get_ask_assistant_graph
-from langflow.agentic.flows.flow_builder_assistant import get_graph as get_flow_builder_graph
-from langflow.agentic.flows.translation_flow import get_graph as get_translation_flow_graph
-
-__all__ = [
-    "get_ask_assistant_graph",
-    "get_flow_builder_graph",
-    "get_translation_flow_graph",
-]
