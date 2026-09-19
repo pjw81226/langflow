@@ -94,7 +94,8 @@ Langflow 문서에 라벨로 나오는 제품 개념어와, 정착된 한국어�
 | Human in the Loop | Human in the Loop (제목), 본문에서는 `사람의 확인` | human input | 사람의 입력 |
 | traceback, Python, import | 영어 그대로 | Model Component | 영어 그대로 |
 | Build / Ask (Assistant 모드) | 만들기 / 질문하기 | dock / float (Assistant 패널) | 옆에 고정 / 캔버스 위에 띄우기 |
-| Accept / Dismiss (Assistant의 제안 카드) | 적용 / 거절 | skip-all (모드 이름) | 자동 승인. 명령어 `/skip-all`은 그대로 둔다 |
+| Accept / Dismiss (Assistant의 제안 카드) | 적용 / 거절 | auto-apply, skip-all (모드 이름) | 자동 적용. 명령어 `/skip-all`은 그대로 둔다 |
+| Test flow / Test again / Fix it | Flow 테스트 / 다시 테스트 / 고치기 | needs your input to run | 값을 넣어야 실행됩니다 |
 | iteration budget | 단계 한도 | history limit | 기록 한도 |
 
 Assistant 카드의 짧은 상태 표시는 `~됨`으로 쓴다(`적용됨`, `거절됨`, `취소됨`, `캔버스에 추가됨`).
