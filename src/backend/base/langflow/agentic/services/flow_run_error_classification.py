@@ -64,6 +64,16 @@ _EXTERNAL_MARKERS: tuple[str, ...] = (
     "permission denied",
     "connection refused",
     "failed to resolve",
+    # The host could not be looked up or reached. Either the test fed a non-URL
+    # (the "Hello" probe) to a component that fetches a URL, or the server has no
+    # route to that site. Neither is a flow bug: rebuilding only burns fix turns.
+    "dns resolution failed",
+    "nodename nor servname",
+    "name or service not known",
+    "temporary failure in name resolution",
+    "getaddrinfo failed",
+    # A fetch the server's SSRF guard refused is a policy decision, not a wiring bug.
+    "ssrf protection",
     "max retries exceeded",
     "no such file or directory",
     "could not connect",

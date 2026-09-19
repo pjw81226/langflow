@@ -44,6 +44,35 @@ class TestExternalResourceErrors:
         assert classify_run_error(message) is RunErrorKind.EXTERNAL_RESOURCE
 
 
+class TestUnreachableHosts:
+    """A host that cannot be looked up is not a flow bug, whatever caused it.
+
+    Seen live: a URL-summarizer flow tested with the "Hello" probe tried to fetch
+    ``hello`` as a host name, and a server without outbound DNS failed on
+    ``example.com``. Classified as unknown, each cost two useless fix turns and put
+    a "Fix it" button on a card for a problem no rebuild can solve.
+    """
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Error loading documents: SSRF Protection: DNS resolution failed for hello: "
+            "[Errno 8] nodename nor servname provided, or not known",
+            "Error loading documents: SSRF Protection: DNS resolution failed for example.com: "
+            "[Errno 8] nodename nor servname provided, or not known",
+            "[Errno -2] Name or service not known",
+            "[Errno -3] Temporary failure in name resolution",
+            "getaddrinfo failed",
+            "SSRF Protection: requests to private network addresses are blocked",
+        ],
+    )
+    def test_should_classify_as_external_resource(self, message):
+        assert classify_run_error(message) is RunErrorKind.EXTERNAL_RESOURCE
+
+    def test_a_code_bug_that_mentions_a_host_stays_fixable(self):
+        assert classify_run_error("NameError: name 'resolve_host' is not defined") is RunErrorKind.FIXABLE
+
+
 class TestTimeout:
     def test_should_classify_as_timeout_when_run_timed_out(self):
         assert classify_run_error("The flow run timed out after 120s.") is RunErrorKind.TIMEOUT
