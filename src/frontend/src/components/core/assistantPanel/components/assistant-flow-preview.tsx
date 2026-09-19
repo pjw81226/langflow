@@ -75,7 +75,10 @@ const defaultNodeStyle = {
 };
 
 /** Extract ReactFlow-compatible nodes and edges from the flow data */
-function extractReactFlowData(flow: Record<string, unknown>): {
+function extractReactFlowData(
+  flow: Record<string, unknown>,
+  unknownNodeLabel: string,
+): {
   nodes: Node[];
   edges: Edge[];
 } {
@@ -108,7 +111,7 @@ function extractReactFlowData(flow: Record<string, unknown>): {
       x: (n.position?.x ?? 0) * scale + 20,
       y: (n.position?.y ?? 0) * scale + 30,
     },
-    data: { label: n.data?.type || "Unknown" },
+    data: { label: n.data?.type || unknownNodeLabel },
     style: defaultNodeStyle,
     draggable: false,
     selectable: false,
@@ -157,9 +160,10 @@ export function AssistantFlowPreview({
   const paste = useFlowStore((state) => state.paste);
   const canvasNodes = useFlowStore((state) => state.nodes);
 
+  const unknownNodeLabel = t("assistant.flowPreview.unknownNode");
   const { nodes, edges } = useMemo(
-    () => extractReactFlowData(flowPreview.flow),
-    [flowPreview.flow],
+    () => extractReactFlowData(flowPreview.flow, unknownNodeLabel),
+    [flowPreview.flow, unknownNodeLabel],
   );
 
   // Merging a proposal that carries its own entry point into a canvas that
@@ -199,10 +203,10 @@ export function AssistantFlowPreview({
       data-testid="assistant-flow-revert-button"
       className={GHOST_SECONDARY_BUTTON}
       onClick={() => onRevert?.()}
-      title="Restore the canvas to its state before this flow was applied"
+      title={t("assistant.flowPreview.revertTooltip")}
     >
       <Undo2 className="h-3.5 w-3.5" />
-      <span>Revert</span>
+      <span>{t("assistant.flowPreview.revert")}</span>
     </button>
   );
 
@@ -213,11 +217,13 @@ export function AssistantFlowPreview({
         <GitBranch className="h-4 w-4 text-foreground/80" />
         <div className="flex flex-col">
           <span className="text-sm font-semibold text-foreground">
-            {flowPreview.name || "Untitled Flow"}
+            {flowPreview.name || t("flow.untitledFlow")}
           </span>
           <span className="text-xs text-muted-foreground">
-            {flowPreview.nodeCount} components, {flowPreview.edgeCount}{" "}
-            connections
+            {t("assistant.flowPreview.summary", {
+              nodes: flowPreview.nodeCount,
+              edges: flowPreview.edgeCount,
+            })}
           </span>
         </div>
       </div>
@@ -226,7 +232,7 @@ export function AssistantFlowPreview({
           nodes is an unreadable tangle. The flow can still be added. */}
       {previewDisabled && (
         <div className="mb-3 w-fit rounded-md border border-dashed border-border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-          Preview disabled — too many components ({nodeCount}).
+          {t("assistant.flowPreview.previewDisabled", { total: nodeCount })}
         </div>
       )}
 
@@ -284,7 +290,7 @@ export function AssistantFlowPreview({
               className={GHOST_PRIMARY_BUTTON}
               onClick={() => onApply?.("add")}
             >
-              <span>Add to canvas</span>
+              <span>{t("assistant.flowPreview.addToCanvas")}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
@@ -297,9 +303,9 @@ export function AssistantFlowPreview({
               addWouldConflict ? GHOST_PRIMARY_BUTTON : GHOST_SECONDARY_BUTTON
             }
             onClick={() => onApply?.("replace")}
-            title="Discard the current canvas and replace it with this flow"
+            title={t("assistant.flowPreview.replaceTooltip")}
           >
-            <span>Replace canvas</span>
+            <span>{t("assistant.flowPreview.replaceCanvas")}</span>
             {addWouldConflict && <ArrowRight className="h-3.5 w-3.5" />}
           </button>
           <button
@@ -309,7 +315,7 @@ export function AssistantFlowPreview({
             onClick={() => onDismiss?.()}
           >
             <X className="h-3.5 w-3.5" />
-            <span>Dismiss</span>
+            <span>{t("assistant.dismiss")}</span>
           </button>
           {/* After an apply the card re-enables but the last apply stays
               undoable until the user reverts or applies again. */}
@@ -322,7 +328,7 @@ export function AssistantFlowPreview({
         <>
           <div className="flex h-7 items-center gap-1.5 px-2 text-sm font-medium text-accent-emerald-foreground">
             <Check className="h-3.5 w-3.5" />
-            <span>Added to canvas</span>
+            <span>{t("assistant.flowPreview.addedToCanvas")}</span>
           </div>
           {revertButton}
         </>
@@ -331,7 +337,7 @@ export function AssistantFlowPreview({
     if (status === "dismissed") {
       return (
         <div className="flex h-7 items-center gap-1.5 px-2 text-sm font-medium text-muted-foreground line-through">
-          <span>Dismissed</span>
+          <span>{t("assistant.dismissed")}</span>
         </div>
       );
     }
@@ -340,7 +346,7 @@ export function AssistantFlowPreview({
       return (
         <div className="flex h-7 items-center gap-1.5 px-2 text-sm font-medium text-accent-emerald-foreground">
           <Check className="h-3.5 w-3.5" />
-          <span>Added to flow</span>
+          <span>{t("assistant.flowPreview.addedToFlow")}</span>
         </div>
       );
     }
@@ -350,7 +356,7 @@ export function AssistantFlowPreview({
         className={GHOST_PRIMARY_BUTTON}
         onClick={handleAddToFlow}
       >
-        <span>Add to Flow</span>
+        <span>{t("assistant.flowPreview.addToFlow")}</span>
         <ArrowRight className="h-3.5 w-3.5" />
       </button>
     );
