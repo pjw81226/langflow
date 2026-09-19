@@ -57,6 +57,43 @@ async def test_get_config_mirrors_assistant_message_length(client: AsyncClient, 
     assert response.json()["assistant_max_message_length"] == 6000
 
 
+async def test_get_config_defaults_the_assistant_panel_settings_to_upstream_behaviour(
+    client: AsyncClient, logged_in_headers: dict
+):
+    """With nothing configured the panel keeps its built-in choices."""
+    response = await client.get("api/v1/config", headers=logged_in_headers)
+
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert body["assistant_default_model"] == ""
+    assert body["assistant_auto_apply_default"] is False
+    assert body["assistant_dock_default"] is False
+
+
+async def test_get_config_mirrors_the_assistant_panel_defaults(
+    client: AsyncClient, logged_in_headers: dict, monkeypatch
+):
+    """The panel reads its deployment defaults from /config.
+
+    The default model matters most: left to itself the panel selects the provider's newest
+    capable model, which is normally its most expensive one.
+    """
+    from lfx.services.deps import get_settings_service
+
+    settings = get_settings_service().settings
+    monkeypatch.setattr(settings, "assistant_default_model", "OpenAI:gpt-5.4")
+    monkeypatch.setattr(settings, "assistant_auto_apply_default", True)
+    monkeypatch.setattr(settings, "assistant_dock_default", True)
+
+    response = await client.get("api/v1/config", headers=logged_in_headers)
+
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert body["assistant_default_model"] == "OpenAI:gpt-5.4"
+    assert body["assistant_auto_apply_default"] is True
+    assert body["assistant_dock_default"] is True
+
+
 @pytest.mark.parametrize(
     ("project_id", "workspace_id"),
     [(uuid4(), uuid4()), (None, None)],

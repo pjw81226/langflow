@@ -482,6 +482,12 @@ class ConfigResponse(BaseConfigResponse):
     # cap the API does. A UI-only constant drifted below the API's and silently truncated long
     # prompts before they were ever sent.
     assistant_max_message_length: int = 2000
+    # Deployment defaults for the Assistant panel (LANGFLOW_ASSISTANT_DEFAULT_MODEL,
+    # LANGFLOW_ASSISTANT_AUTO_APPLY_DEFAULT, LANGFLOW_ASSISTANT_DOCK_DEFAULT). Each only
+    # applies until the user makes their own choice in the panel.
+    assistant_default_model: str = ""
+    assistant_auto_apply_default: bool = False
+    assistant_dock_default: bool = False
     # True when local Chroma may back a knowledge base or memory base — i.e. on
     # the dev profile. The production profile refuses it (vectors on the serving
     # box's own disk don't survive a restart and can't be shared across
@@ -553,6 +559,9 @@ class ConfigResponse(BaseConfigResponse):
             a2a_enabled=settings.a2a_enabled,
             agentic_experience=settings.agentic_experience,
             assistant_max_message_length=settings.assistant_max_message_length,
+            assistant_default_model=settings.assistant_default_model,
+            assistant_auto_apply_default=settings.assistant_auto_apply_default,
+            assistant_dock_default=settings.assistant_dock_default,
             local_vector_store_available=settings.deployment_profile != "prod",
         )
 

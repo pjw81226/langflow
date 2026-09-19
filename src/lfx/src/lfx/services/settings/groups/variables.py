@@ -41,6 +41,27 @@ class VariablesSettings(BaseModel):
     with it, which is why it is capped at all.
     """
 
+    assistant_default_model: str = ""
+    """Model the Langflow Assistant panel selects by default, as ``Provider:model``
+    (for example ``OpenAI:gpt-5.4``). Empty keeps the built-in choice.
+
+    Without it the panel picks the first capable model in catalog order, which is whatever the
+    provider released last -- usually its most expensive one. A deployment whose users never
+    open the model menu should name the model it is willing to pay for. Mirrored to the UI
+    through ``/api/v1/config``; it only applies while that model is enabled for the user, and a
+    model the user picked themselves always wins.
+    """
+
+    assistant_auto_apply_default: bool = False
+    """Whether the Assistant applies plans and flow proposals without asking, for users who have
+    not chosen either way. Off keeps the review steps. Mirrored to the UI through
+    ``/api/v1/config``; the user's own toggle always wins."""
+
+    assistant_dock_default: bool = False
+    """Whether the Assistant panel opens docked beside the canvas instead of floating over it,
+    for users who have not chosen either way. Mirrored to the UI through ``/api/v1/config``;
+    the user's own choice always wins."""
+
     variables_to_get_from_environment: list[str] = VARIABLES_TO_GET_FROM_ENVIRONMENT
     """List of environment variables to get from the environment and store in the database."""
 
