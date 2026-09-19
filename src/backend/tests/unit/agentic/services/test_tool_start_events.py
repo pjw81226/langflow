@@ -7,11 +7,9 @@ frontend can show a "currently doing X" row while the tool runs. Read-only
 tools must stay silent.
 """
 
-import json
 from unittest.mock import patch
 
 import pytest
-from langflow.agentic.helpers.sse import format_tool_start_event
 from lfx.mcp.flow_builder_tools import (
     BuildFlowFromSpec,
     ConfigureComponent,
@@ -251,25 +249,3 @@ class TestListenerLifecycle:
         size_after_run = event_queue.qsize()
         emit_tool_start("add_component", component_type="ChatInput")
         assert event_queue.qsize() == size_after_run, "listener leaked past the run"
-
-
-class TestFormatToolStartEvent:
-    def test_builds_english_fallback_label_from_tool_and_fields(self):
-        event = format_tool_start_event({"tool": "add_component", "component_type": "ChatInput"})
-        payload = json.loads(event.removeprefix("data: "))
-        assert payload == {
-            "event": "tool_start",
-            "tool": "add_component",
-            "component_type": "ChatInput",
-            "label": "Adding ChatInput",
-        }
-
-    def test_keeps_caller_provided_label(self):
-        event = format_tool_start_event({"tool": "build_flow", "label": "Custom"})
-        payload = json.loads(event.removeprefix("data: "))
-        assert payload["label"] == "Custom"
-
-    def test_unknown_tool_gets_generic_label(self):
-        event = format_tool_start_event({"tool": "future_tool"})
-        payload = json.loads(event.removeprefix("data: "))
-        assert payload["label"] == "Working"

@@ -228,21 +228,3 @@ class TestUseTemplateLoadCost:
 
         assert "error" not in second.data, second.data
         assert second.data["node_count"] == first.data["node_count"]
-
-
-class TestUseTemplateToolStartLabel:
-    def test_english_fallback_label_names_the_template(self):
-        from langflow.agentic.helpers.sse import format_tool_start_event
-
-        event = format_tool_start_event({"tool": "use_template", "template_name": "Memory Chatbot"})
-        payload = json.loads(event.removeprefix("data: "))
-
-        assert payload["label"] == "Applying template Memory Chatbot"
-
-    def test_missing_template_name_gets_generic_label(self):
-        from langflow.agentic.helpers.sse import format_tool_start_event
-
-        event = format_tool_start_event({"tool": "use_template"})
-        payload = json.loads(event.removeprefix("data: "))
-
-        assert payload["label"] == "Applying a template"

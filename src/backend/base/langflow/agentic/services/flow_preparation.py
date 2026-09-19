@@ -17,29 +17,6 @@ def get_provider_config(provider: str) -> dict | None:
     return MODEL_PROVIDER_METADATA.get(provider)
 
 
-def available_model_providers(global_variables: dict[str, str] | None) -> list[str]:
-    """Return the model providers whose required API key is configured.
-
-    Provider-agnostic and deterministic: for each provider in
-    ``MODEL_PROVIDER_METADATA`` whose required secret variable
-    (e.g. ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``, ``GROQ_API_KEY``) has
-    a non-empty value in ``global_variables`` (which the assistant builds
-    from the environment), include it. Order preserved from the metadata
-    so the caller can pick a stable default. No OpenAI bias — whatever the
-    user actually has keys for.
-    """
-    gv = global_variables or {}
-    providers: list[str] = []
-    for provider, meta in MODEL_PROVIDER_METADATA.items():
-        for var in meta.get("variables", []):
-            if var.get("required") and var.get("is_secret"):
-                key = var.get("variable_key")
-                if key and (gv.get(key) or "").strip():
-                    providers.append(provider)
-                break
-    return providers
-
-
 def inject_history_limit_into_flow(flow_data: dict, limit: int | None) -> dict:
     """Set the memory window (``n_messages``) on the flow's Agent components.
 
@@ -61,8 +38,8 @@ def inject_history_limit_into_flow(flow_data: dict, limit: int | None) -> dict:
 
 
 MAX_ASSISTANT_ITERATIONS = 200
-# Pinned assistant step budget (a COST decision, tripwire-tested): LangflowAssistant.json
-# pins it on its Agents and the Python builder flow defaults to it — one source of truth.
+# Default step budget injected into JSON assistant flows (a COST decision). The
+# Python agents of the panel set their own, smaller budgets.
 DEFAULT_ASSISTANT_ITERATIONS = 30
 ASSISTANT_ITERATIONS_ENV = "LANGFLOW_ASSISTANT_ITERATIONS"
 

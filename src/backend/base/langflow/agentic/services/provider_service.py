@@ -1,7 +1,6 @@
 """Provider configuration service."""
 
 import os
-import re
 from uuid import UUID
 
 from lfx.base.models.model_metadata import CONDITIONAL_LIVE_MODEL_PROVIDERS, LIVE_MODEL_PROVIDERS
@@ -139,55 +138,6 @@ async def check_api_key(
 def _is_cloud_model(name: str) -> bool:
     lowered = name.lower()
     return lowered.endswith((":cloud", "-cloud"))
-
-
-_SMALL_PARAM_PATTERN = re.compile(r"(?<![\d])([1-9]|1[0-3])b\b", re.IGNORECASE)
-_LARGE_PARAM_PATTERN = re.compile(r"(?<![\d.])(1[4-9]|[2-9]\d|\d{3,})b\b", re.IGNORECASE)
-_SMALL_DEFAULT_BASE_NAMES = frozenset(
-    {
-        "llama2",
-        "llama3",
-        "llama3.1",
-        "llama3.2",
-        "llama3-groq-tool-use",
-        "mistral",
-        "mistral-nemo",
-        "qwen",
-        "qwen2",
-        "qwen2.5",
-        "qwen2.5-coder",
-        "qwen3",
-        "gemma",
-        "gemma2",
-        "gemma3",
-        "smollm2",
-        "hermes3",
-        "granite3-dense",
-        "granite3.1-dense",
-        "granite3-moe",
-        "aya-expanse",
-        "cogito",
-    }
-)
-
-
-def is_probably_small_model(model_name: str | None) -> bool:
-    """True for open-weights models ≤ 13B (by param count or known small-default tag).
-
-    Deliberately narrower than the frontend strength hint: only explicit
-    size signals count, so hosted "mini"-style models (which drive tools
-    fine) are never flagged. Verified live 2026-06-12: ≤ 13B models emit
-    zero native tool calls under the assistant prompt, so retrying them
-    on a no-action build is predictably futile.
-    """
-    if not model_name:
-        return False
-    name = model_name.lower()
-    if _LARGE_PARAM_PATTERN.search(name):
-        return False
-    if name.split(":")[0] in _SMALL_DEFAULT_BASE_NAMES:
-        return True
-    return bool(_SMALL_PARAM_PATTERN.search(name))
 
 
 def list_installed_tool_calling_models(provider: str, user_id: UUID | str | None) -> list[str]:

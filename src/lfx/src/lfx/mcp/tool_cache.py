@@ -12,7 +12,7 @@ Scope is **per request**:
     - The cache lives in a ``contextvars.ContextVar`` so concurrent
       assistant requests (different SSE sessions, different users) never
       see each other's entries.
-    - ``reset_tool_cache()`` is called by ``assistant_service`` at the
+    - ``reset_tool_cache()`` is called by the assistant's turn handler at the
       start of every request, alongside ``reset_working_flow()``.
     - Child contexts spawned via ``copy_context()`` (e.g. ``asyncio.gather``
       tasks) get their own fresh cache. The lazy-allocate-on-first-write

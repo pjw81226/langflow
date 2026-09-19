@@ -128,7 +128,7 @@ def _extract_output_methods(tree: ast.Module, class_name: str) -> list[str]:
 def _format_validation_error(exc: ValidationError) -> str:
     """Return a compact single-line message for a pydantic ValidationError.
 
-    The retry loop in assistant_service feeds this string into
+    The component turn's retry loop feeds this string into
     extract_friendly_error, which pattern-matches on phrases like
     ``"input should be a valid"`` to route the error to a targeted corrective
     prompt. Pydantic's first error line is just ``"1 validation error for X"``
@@ -226,7 +226,7 @@ async def _execute_output_methods_for_validation(cc_instance) -> str | None:
     Non-schema runtime errors (network failures, auth problems) are
     **intentionally swallowed**: a correct component can still fail execution
     in the validation sandbox for environmental reasons, and we must not mark
-    it as broken on that basis. The retry loop in assistant_service consumes
+    it as broken on that basis. The component turn's retry loop consumes
     only the schema errors this helper returns.
 
     Note: uses ``_build_results`` directly instead of the public ``build_results``

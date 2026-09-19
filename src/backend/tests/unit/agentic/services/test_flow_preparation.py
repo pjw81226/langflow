@@ -8,7 +8,6 @@ import json
 from unittest.mock import patch
 
 from langflow.agentic.services.flow_preparation import (
-    available_model_providers,
     inject_model_into_flow,
     load_and_prepare_flow,
 )
@@ -22,36 +21,6 @@ OPENAI_CONFIG = {
     "variable_name": "OPENAI_API_KEY",
     "icon": "OpenAI",
 }
-
-
-class TestAvailableModelProviders:
-    """Provider-agnostic detection of which providers have credentials.
-
-    No OpenAI bias — whatever keys the user actually has in the
-    (env-built) global variables.
-    """
-
-    def test_detects_only_providers_with_a_configured_key(self):
-        assert available_model_providers({"ANTHROPIC_API_KEY": "sk-x"}) == ["Anthropic"]
-        result = available_model_providers({"OPENAI_API_KEY": "a", "GROQ_API_KEY": "b"})
-        assert "OpenAI" in result
-        assert "Groq" in result
-        assert "Anthropic" not in result
-
-    def test_empty_or_blank_keys_yield_no_providers(self):
-        assert available_model_providers({}) == []
-        assert available_model_providers(None) == []
-        assert available_model_providers({"OPENAI_API_KEY": ""}) == []
-        # A whitespace-only key is NOT a configured key — the provider
-        # would otherwise be picked and fail at run with an auth error.
-        assert available_model_providers({"OPENAI_API_KEY": "   "}) == []
-        assert available_model_providers({"ANTHROPIC_API_KEY": "\t\n"}) == []
-
-    def test_does_not_hardcode_openai(self):
-        # Only Google configured → OpenAI must NOT appear.
-        result = available_model_providers({"GOOGLE_API_KEY": "k"})
-        assert "Google Generative AI" in result
-        assert "OpenAI" not in result
 
 
 def _make_flow_data(node_types=None):

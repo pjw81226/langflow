@@ -1,13 +1,11 @@
 """Code and data extraction from markdown responses."""
 
-import json
 import logging
 import re
 
 logger = logging.getLogger(__name__)
 
 PYTHON_CODE_BLOCK_PATTERN = r"```python\s*([\s\S]*?)```"
-FLOW_JSON_BLOCK_PATTERN = r"```flow_json\s*([\s\S]*?)```"
 GENERIC_CODE_BLOCK_PATTERN = r"```\s*([\s\S]*?)```"
 UNCLOSED_PYTHON_BLOCK_PATTERN = r"```python\s*([\s\S]*)$"
 UNCLOSED_GENERIC_BLOCK_PATTERN = r"```\s*([\s\S]*)$"
@@ -120,21 +118,3 @@ def escape_template_braces(text: str) -> str:
     return re.sub(
         r"\{\{|\}\}|\{|\}", lambda match: match.group(0) if match.group(0) in {"{{", "}}"} else match.group(0) * 2, text
     )
-
-
-def extract_flow_json(text: str) -> dict | None:
-    """Extract flow JSON from a ```flow_json code block in the response.
-
-    The BuildFlowFromSpec tool instructs the agent to include the built
-    flow data in a ```flow_json block so the assistant service can detect
-    it and send a flow_preview event to the frontend.
-    """
-    match = re.search(FLOW_JSON_BLOCK_PATTERN, text, re.IGNORECASE)
-    if not match:
-        return None
-    raw = match.group(1).strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        logger.warning("Found ```flow_json``` block but JSON parsing failed: %s", e)
-        return None

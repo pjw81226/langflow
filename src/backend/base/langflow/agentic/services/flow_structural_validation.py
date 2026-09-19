@@ -9,7 +9,7 @@ component registry, no server, no network) so they run identically in the
 server, the API path, and from ``lfx``.
 
 Returns human-readable issue strings naming the offending component and
-field so the agent can repair the exact wiring in a single fix turn.
+field so the user can fix the exact wiring.
 """
 
 from __future__ import annotations
@@ -56,20 +56,6 @@ def loop_structural_caveat(issues: list[str]) -> str:
         "This flow contains a loop, so I validated its structure instead of running it, "
         f"and it looks incomplete: {detail} Connect those inputs, then run it."
     )
-
-
-FLOW_STRUCTURE_RETRY_TEMPLATE = """The loop flow you just built is structurally incomplete \
-(it was validated, not run):
-
-{error}
-
-Fix the wiring so every required input is connected: give the Loop a data source into its \
-Inputs, connect each component's required inputs, and close the loop body back into the Loop's \
-Item input. Then rebuild the flow with the build tool. Do not just describe the fix — apply it.
-
-If the user explicitly asked for this flow to stay incomplete or unconnected, leave it exactly \
-as it is and change nothing — their instruction wins over completeness, and they will be told \
-the flow is incomplete."""
 
 
 def _nodes(flow: dict) -> list[dict]:

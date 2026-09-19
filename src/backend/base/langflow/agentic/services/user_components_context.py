@@ -12,8 +12,9 @@ the right primitive for ``_working_flow_var`` and ``_flow_events_var``:
 asyncio-task-local, no module globals, automatic isolation between
 concurrent requests.
 
-``assistant_service`` sets the value at request entry and resets in the
-``finally`` block. Consumers call ``current_user_id()`` to read it.
+The assistant's turn handler (``assistant_turn``) sets the value at request
+entry and resets it in its ``finally`` block. Consumers call
+``current_user_id()`` to read it.
 """
 
 from __future__ import annotations

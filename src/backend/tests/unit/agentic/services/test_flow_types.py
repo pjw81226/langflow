@@ -6,16 +6,14 @@ Tests the dataclasses and constants used in flow execution.
 from pathlib import Path
 
 from langflow.agentic.services.flow_types import (
+    ASK_ASSISTANT_FLOW,
+    COMPONENT_WRITER_FLOW,
     FLOWS_BASE_PATH,
-    LANGFLOW_ASSISTANT_FLOW,
-    MAX_VALIDATION_RETRIES,
+    PROMPT_WRITER_FLOW,
     STREAMING_EVENT_TIMEOUT_SECONDS,
     STREAMING_QUEUE_MAX_SIZE,
-    TRANSLATION_FLOW,
-    VALIDATION_RETRY_TEMPLATE,
     VALIDATION_UI_DELAY_SECONDS,
     FlowExecutionResult,
-    IntentResult,
 )
 
 
@@ -62,34 +60,6 @@ class TestFlowExecutionResult:
         assert str(result.error) == "detailed message"
 
 
-class TestIntentResult:
-    """Tests for IntentResult dataclass."""
-
-    def test_should_create_with_translation_and_intent(self):
-        """Should create with translation and intent fields."""
-        result = IntentResult(translation="hello world", intent="question")
-        assert result.translation == "hello world"
-        assert result.intent == "question"
-
-    def test_should_support_generate_component_intent(self):
-        """Should support generate_component as valid intent value."""
-        result = IntentResult(translation="create a component", intent="generate_component")
-        assert result.intent == "generate_component"
-
-    def test_should_be_equality_comparable(self):
-        """Should support equality comparison."""
-        result1 = IntentResult(translation="test", intent="question")
-        result2 = IntentResult(translation="test", intent="question")
-        result3 = IntentResult(translation="test", intent="generate_component")
-        assert result1 == result2
-        assert result1 != result3
-
-    def test_should_allow_empty_translation(self):
-        """Should allow empty string as translation."""
-        result = IntentResult(translation="", intent="question")
-        assert result.translation == ""
-
-
 class TestConstants:
     """Tests for module constants."""
 
@@ -122,72 +92,13 @@ class TestConstants:
         assert STREAMING_EVENT_TIMEOUT_SECONDS >= 30
         assert STREAMING_EVENT_TIMEOUT_SECONDS <= 600
 
-    def test_max_validation_retries_should_be_positive(self):
-        """MAX_VALIDATION_RETRIES should be a positive integer."""
-        assert isinstance(MAX_VALIDATION_RETRIES, int)
-        assert MAX_VALIDATION_RETRIES > 0
-
-    def test_max_validation_retries_should_be_reasonable(self):
-        """MAX_VALIDATION_RETRIES should be within reasonable bounds."""
-        assert MAX_VALIDATION_RETRIES >= 1
-        assert MAX_VALIDATION_RETRIES <= 10
-
     def test_validation_ui_delay_should_be_small(self):
         """VALIDATION_UI_DELAY_SECONDS should be a small positive value."""
         assert isinstance(VALIDATION_UI_DELAY_SECONDS, float)
         assert VALIDATION_UI_DELAY_SECONDS > 0
         assert VALIDATION_UI_DELAY_SECONDS < 2
 
-    def test_langflow_assistant_flow_should_be_string(self):
-        """LANGFLOW_ASSISTANT_FLOW should be a non-empty string."""
-        assert isinstance(LANGFLOW_ASSISTANT_FLOW, str)
-        assert len(LANGFLOW_ASSISTANT_FLOW) > 0
-
-    def test_translation_flow_should_be_string(self):
-        """TRANSLATION_FLOW should be a non-empty string."""
-        assert isinstance(TRANSLATION_FLOW, str)
-        assert len(TRANSLATION_FLOW) > 0
-
-
-class TestValidationRetryTemplate:
-    """Tests for VALIDATION_RETRY_TEMPLATE constant."""
-
-    def test_should_be_formattable_string(self):
-        """Should be a string template with format placeholders."""
-        assert isinstance(VALIDATION_RETRY_TEMPLATE, str)
-        assert "{error}" in VALIDATION_RETRY_TEMPLATE
-        assert "{code}" in VALIDATION_RETRY_TEMPLATE
-
-    def test_should_format_with_error_and_code(self):
-        """Should format correctly with error and code values."""
-        error = "SyntaxError: invalid syntax"
-        code = "def broken():"
-        result = VALIDATION_RETRY_TEMPLATE.format(error=error, code=code)
-        assert error in result
-        assert code in result
-
-    def test_should_include_fix_instruction(self):
-        """Should include instruction to fix the error."""
-        template_lower = VALIDATION_RETRY_TEMPLATE.lower()
-        assert "fix" in template_lower or "correct" in template_lower
-
-    def test_should_reference_error(self):
-        """Should reference the error in the template."""
-        template_lower = VALIDATION_RETRY_TEMPLATE.lower()
-        assert "error" in template_lower
-
-    def test_should_reference_code(self):
-        """Should reference the code in the template."""
-        template_lower = VALIDATION_RETRY_TEMPLATE.lower()
-        assert "code" in template_lower
-
-    def test_should_format_with_multiline_code(self):
-        """Should format correctly with multiline code."""
-        error = "IndentationError: unexpected indent"
-        code = """def example():
-    if True:
-    print("wrong indent")"""
-        result = VALIDATION_RETRY_TEMPLATE.format(error=error, code=code)
-        assert error in result
-        assert "def example():" in result
-        assert 'print("wrong indent")' in result
+    def test_every_agent_flow_resolves_to_a_python_module(self):
+        """Each tab's agent is loaded by file name from the flows folder."""
+        for name in (ASK_ASSISTANT_FLOW, COMPONENT_WRITER_FLOW, PROMPT_WRITER_FLOW):
+            assert (FLOWS_BASE_PATH / f"{name}.py").is_file(), name
