@@ -315,3 +315,4 @@ _context
 requirements-mend.txt
 requirements-workspace-mend.txt
 requirements-gp-mend.txt
+.gstack/
