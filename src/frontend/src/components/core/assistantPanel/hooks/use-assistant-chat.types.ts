@@ -1,6 +1,7 @@
 import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import type {
   AssistantMessage,
+  AssistantMode,
   AssistantModel,
 } from "../assistant-panel.types";
 
@@ -12,7 +13,11 @@ export interface UseAssistantChatReturn {
   handleSend: (
     content: string,
     model: AssistantModel | null,
-    options?: { silent?: boolean; displayContent?: string },
+    options?: {
+      silent?: boolean;
+      displayContent?: string;
+      mode?: AssistantMode;
+    },
   ) => Promise<void>;
   handleApprove: (messageId: string, componentCode?: string) => Promise<void>;
   handleUpdateFlowAction: (

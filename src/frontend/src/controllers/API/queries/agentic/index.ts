@@ -14,6 +14,7 @@ export type {
   AgenticStepType,
   AgenticTokenEvent,
   AgenticToolStartEvent,
+  AssistantMode,
   AssistantModelNotice,
   FlowAction,
 } from "./types";

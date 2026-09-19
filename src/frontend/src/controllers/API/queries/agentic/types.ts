@@ -37,6 +37,8 @@ export interface AgenticTokenEvent {
 export interface AgenticCompleteData {
   result: string;
   validated: boolean;
+  /** Echo of the request mode, when one was sent. */
+  mode?: AssistantMode;
   class_name?: string;
   component_code?: string;
   validation_attempts?: number;
@@ -200,6 +202,12 @@ export type AgenticSSEEvent =
   | AgenticErrorEvent
   | AgenticCancelledEvent;
 
+/**
+ * Panel mode the user picked for a turn. "build" lets the assistant change the
+ * canvas (today's behaviour); "ask" is a read-only help turn.
+ */
+export type AssistantMode = "build" | "ask";
+
 export interface AgenticAssistRequest {
   flow_id: string;
   input_value: string;
@@ -211,6 +219,8 @@ export interface AgenticAssistRequest {
   /** Agent step budget for this turn (`/iterations N`); the backend clamps to
    * 1–200 and falls back to the flow default when absent. */
   iterations_limit?: number;
+  /** Absent means "build". A backend without mode support ignores the field. */
+  mode?: AssistantMode;
 }
 
 export interface AgenticProgressState {

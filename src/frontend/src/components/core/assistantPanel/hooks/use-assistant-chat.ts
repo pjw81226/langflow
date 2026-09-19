@@ -18,6 +18,7 @@ import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import type { APIClassType } from "@/types/api";
 import type {
   AssistantMessage,
+  AssistantMode,
   AssistantModel,
 } from "../assistant-panel.types";
 import { applyFlowProposalToCanvas } from "../helpers/apply-flow-proposal";
@@ -154,6 +155,9 @@ export function useAssistantChat(
         /** Localized text for the user bubble when ``content`` is a backend
          * protocol string that must reach the server byte-identical. */
         displayContent?: string;
+        /** Panel mode for this turn. Internal sends (plan approval, edit
+         * continuation) omit it and stay build turns. */
+        mode?: AssistantMode;
       },
     ) => {
       // ``internal`` bypasses the processing guard to avoid the unmount blink.
@@ -215,12 +219,23 @@ export function useAssistantChat(
 
       lastModelRef.current = model;
 
+      const turnMode: AssistantMode = options?.mode ?? "build";
+      const isAskTurn = turnMode === "ask";
+      // Ask turns are read-only. The backend sends no canvas events for them; if
+      // one arrives anyway (older backend, bug), it must never reach the canvas.
+      const ignoreInAskMode = (eventName: string): boolean => {
+        if (!isAskTurn) return false;
+        console.warn(`[assistant] ignored ${eventName} in ask mode`);
+        return true;
+      };
+
       const displayContent = options?.displayContent;
       const userMessage: AssistantMessage = {
         id: uid.randomUUID(10),
         role: "user",
         content: displayContent ?? content,
         ...(displayContent !== undefined ? { wireContent: content } : {}),
+        mode: turnMode,
         timestamp: new Date(),
         status: "complete",
       };
@@ -230,6 +245,7 @@ export function useAssistantChat(
         id: assistantMessageId,
         role: "assistant",
         content: "",
+        mode: turnMode,
         timestamp: new Date(),
         status: "streaming",
       };
@@ -240,6 +256,7 @@ export function useAssistantChat(
         updateMessage(reuseId, () => ({
           content: "",
           status: "streaming" as const,
+          mode: turnMode,
           progress: undefined,
           error: undefined,
           pendingPlanProposal: undefined,
@@ -260,8 +277,10 @@ export function useAssistantChat(
 
       // Re-inject the dismissed plan once — the LLM has no server-side
       // history, and a turn that never replans must not resend a stale plan.
-      const stashedPlan = dismissedPlanMarkdownRef.current;
-      dismissedPlanMarkdownRef.current = null;
+      // Only a build turn consumes the stash: a question asked while refining
+      // a plan must not swallow it.
+      const stashedPlan = isAskTurn ? null : dismissedPlanMarkdownRef.current;
+      if (!isAskTurn) dismissedPlanMarkdownRef.current = null;
       const inputValue = stashedPlan
         ? buildRefinementInput(stashedPlan, content)
         : content;
@@ -283,6 +302,7 @@ export function useAssistantChat(
             session_id: sessionIdRef.current,
             history_limit: historyLimitRef.current ?? undefined,
             iterations_limit: iterationsLimitRef.current ?? undefined,
+            mode: turnMode,
           },
           {
             onProgress: (event) => {
@@ -316,6 +336,7 @@ export function useAssistantChat(
               }));
             },
             onFlowPreview: (event) => {
+              if (ignoreInAskMode("flow_preview")) return;
               applyFlowUpdate({
                 event: "flow_update",
                 action: "set_flow",
@@ -332,6 +353,7 @@ export function useAssistantChat(
               }));
             },
             onFlowUpdate: (event) => {
+              if (ignoreInAskMode(`flow_update:${event.action}`)) return;
               // Tool result delivered — retire the in-progress spinner row.
               updateMessage(assistantMessageId, () => ({
                 inProgressTask: undefined,
@@ -452,6 +474,7 @@ export function useAssistantChat(
               }
             },
             onToolStart: (event) => {
+              if (ignoreInAskMode("tool_start")) return;
               // Latest tool_start wins; matching flow_update (or run end) retires it.
               updateMessage(assistantMessageId, () => ({
                 inProgressTask: inProgressTaskFromEvent(event),
@@ -487,7 +510,9 @@ export function useAssistantChat(
                 inProgressTask: undefined,
                 content: event.data.result || "",
                 // Pure edits stay false so approval doesn't spawn a second message.
-                continuationExpected: event.data.continuation_expected === true,
+                // An ask turn changed nothing, so there is nothing to continue.
+                continuationExpected:
+                  !isAskTurn && event.data.continuation_expected === true,
                 result: {
                   content: event.data.result || "",
                   validated: event.data.validated,
@@ -503,7 +528,10 @@ export function useAssistantChat(
                   typeof event.data.duration_seconds === "number"
                     ? event.data.duration_seconds * 1000
                     : undefined,
-                restoreVersionId: event.data.restore_version_id,
+                // No canvas change on an ask turn, so no revert point to offer.
+                restoreVersionId: isAskTurn
+                  ? undefined
+                  : event.data.restore_version_id,
                 // Silent model failures the turn recovered from — shown as an (i)
                 // so a background swap/retry is never invisible to the user.
                 notices: event.data.notices,
@@ -602,9 +630,12 @@ export function useAssistantChat(
       void handleSend(
         userMessage.wireContent ?? userMessage.content,
         lastModel,
-        userMessage.wireContent !== undefined
-          ? { displayContent: userMessage.content }
-          : undefined,
+        {
+          ...(userMessage.wireContent !== undefined
+            ? { displayContent: userMessage.content }
+            : {}),
+          mode: userMessage.mode,
+        },
       );
     },
     [messages, handleSend],

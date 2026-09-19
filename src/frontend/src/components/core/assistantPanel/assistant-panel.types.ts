@@ -4,9 +4,12 @@ import type {
   AgenticProgressState,
   AgenticResult,
   AgenticStepType,
+  AssistantMode,
   AssistantModelNotice,
   FlowAction,
 } from "@/controllers/API/queries/agentic";
+
+export type { AssistantMode };
 
 export type AssistantMessageStatus =
   | "pending"
@@ -19,6 +22,9 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** Panel mode this turn was sent in. Absent on messages stored before modes
+   * existed, which were all build turns. */
+  mode?: AssistantMode;
   /** What was actually sent to the backend when it differs from the shown
    * ``content`` (protocol strings such as the plan approval signal). A retry
    * must resend this, never the localized display text. */
