@@ -9,6 +9,7 @@ import useFlowStore from "@/stores/flowStore";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
 import type {
+  AssistantMode,
   AssistantModel,
   AssistantPanelProps,
 } from "./assistant-panel.types";
@@ -18,6 +19,8 @@ import { AssistantInput } from "./components/assistant-input";
 import { AssistantMessageItem } from "./components/assistant-message";
 import { AssistantNoModelsState } from "./components/assistant-no-models-state";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
+// Direct path: tests mock the ./hooks barrel wholesale.
+import { useAssistantMode } from "./hooks/use-assistant-mode";
 
 // Module-level draft cache — survives panel unmount/remount
 let draftMessageCache = "";
@@ -51,6 +54,8 @@ interface AssistantInputWithScrollProps {
   draftMessage?: string;
   onDraftChange?: (draft: string) => void;
   isRefiningPlan?: boolean;
+  mode: AssistantMode;
+  onModeChange: (mode: AssistantMode) => void;
 }
 
 function AssistantInputWithScroll({
@@ -63,6 +68,8 @@ function AssistantInputWithScroll({
   draftMessage,
   onDraftChange,
   isRefiningPlan,
+  mode,
+  onModeChange,
 }: AssistantInputWithScrollProps) {
   const { scrollToBottom } = useStickToBottomContext();
 
@@ -82,6 +89,8 @@ function AssistantInputWithScroll({
       draftMessage={draftMessage}
       onDraftChange={onDraftChange}
       isRefiningPlan={isRefiningPlan}
+      mode={mode}
+      onModeChange={onModeChange}
       compact
     />
   );
@@ -96,6 +105,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const currentFlowId = useFlowStore((state) => state.currentFlow?.id);
   const isReadOnly = useIsFlowReadOnly(currentFlowId);
+  const [mode, setMode] = useAssistantMode();
   // The expanded sidebar offsets the canvas 280px, so the panel shifts right
   // by half that (140px) to stay centered on the canvas.
   const isSidebarOpen = useSidebar().open;
@@ -169,11 +179,15 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
       document.removeEventListener("pointerdown", handleClickOutside, true);
   }, [isOpen, isProcessing, onClose]);
   const handleAuthorizedSend = useCallback(
-    (content: string, model: AssistantModel | null) => {
+    (
+      content: string,
+      model: AssistantModel | null,
+      sendMode: AssistantMode = mode,
+    ) => {
       if (!canSendWithModel(model)) return;
-      void handleSend(content, model);
+      void handleSend(content, model, { mode: sendMode });
     },
-    [canSendWithModel, handleSend],
+    [canSendWithModel, handleSend, mode],
   );
   const handleAuthorizedRetry = useCallback(
     (messageId: string) => {
@@ -227,7 +241,10 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
       // welcome message stays around for a manual retry.
     }
     if (!saved || !canSendWithModel(saved)) return;
-    handleAuthorizedSend(pendingMessage, saved);
+    // The welcome screen asks what to build, so the hand-off is a build turn
+    // whatever mode the panel was last left in.
+    setMode("build");
+    handleAuthorizedSend(pendingMessage, saved, "build");
     clearPendingMessage();
   }, [
     isOpen,
@@ -237,6 +254,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     canSendWithModel,
     handleAuthorizedSend,
     clearPendingMessage,
+    setMode,
   ]);
 
   // A welcome-overlay submit needs vertical room for the auto-sent message +
@@ -474,6 +492,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                 draftMessageCache = draft;
               }}
               isRefiningPlan={isRefiningPlan}
+              mode={mode}
+              onModeChange={setMode}
             />
           </StickToBottom>
         ) : (
@@ -493,6 +513,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               }}
               isRefiningPlan={isRefiningPlan}
               onMentionOpenChange={setIsMentionOpen}
+              mode={mode}
+              onModeChange={setMode}
             />
           </>
         )}

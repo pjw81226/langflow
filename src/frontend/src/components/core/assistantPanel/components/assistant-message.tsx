@@ -194,6 +194,14 @@ export function AssistantMessageItem({
             >
               {isUser ? t("assistant.user") : t("assistant.title")}
             </span>
+            {isUser && message.mode === "ask" && (
+              <span
+                data-testid="assistant-message-ask-chip"
+                className="rounded-full border border-border px-1.5 text-[10px] font-medium leading-4 text-muted-foreground"
+              >
+                {t("assistant.mode.ask")}
+              </span>
+            )}
             {!isUser && message.status === "complete" && (
               <MessageMetadata
                 usage={message.usage}

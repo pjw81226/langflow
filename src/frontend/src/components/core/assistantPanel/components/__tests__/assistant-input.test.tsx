@@ -30,8 +30,10 @@ jest.mock("../../helpers/messages", () => ({
 }));
 
 jest.mock("../../assistant-panel.constants", () => ({
-  // Resolves to "Ask me anything about Langflow..." through the en.json mock.
-  getAssistantPlaceholderKey: () => "assistant.placeholder.4",
+  // Resolve through the en.json mock to "Ask me anything about Langflow..."
+  // (build) and "Ask how to use Langflow..." (ask).
+  getAssistantPlaceholderKey: (mode?: string) =>
+    mode === "ask" ? "assistant.placeholder.ask.0" : "assistant.placeholder.4",
 }));
 
 describe("AssistantInput", () => {
@@ -102,6 +104,58 @@ describe("AssistantInput", () => {
 
       expect(
         screen.getByRole("button", { name: /stop generation/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("panel mode", () => {
+    it("should_not_render_the_mode_switch_without_a_change_handler", () => {
+      render(<AssistantInput {...defaultProps} />);
+
+      expect(screen.queryByTestId("assistant-mode-switch")).toBeNull();
+    });
+
+    it("should_render_the_mode_switch_and_report_changes", () => {
+      const onModeChange = jest.fn();
+      render(
+        <AssistantInput
+          {...defaultProps}
+          mode="build"
+          onModeChange={onModeChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("assistant-mode-ask"));
+
+      expect(onModeChange).toHaveBeenCalledWith("ask");
+    });
+
+    it("should_use_a_question_placeholder_in_ask_mode", () => {
+      render(
+        <AssistantInput
+          {...defaultProps}
+          mode="ask"
+          onModeChange={jest.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByPlaceholderText("Ask how to use Langflow..."),
+      ).toBeInTheDocument();
+    });
+
+    it("should_not_show_the_plan_refinement_cue_in_ask_mode", () => {
+      render(
+        <AssistantInput
+          {...defaultProps}
+          mode="ask"
+          onModeChange={jest.fn()}
+          isRefiningPlan
+        />,
+      );
+
+      expect(
+        screen.getByPlaceholderText("Ask how to use Langflow..."),
       ).toBeInTheDocument();
     });
   });

@@ -215,4 +215,49 @@ describe("AssistantPanel scoped model authorization", () => {
     expect(screen.getByTestId("mock-assistant-send")).toBeDisabled();
     expect(screen.queryByTestId("assistant-no-models-state")).toBeNull();
   });
+
+  describe("panel mode", () => {
+    it("sends a typed message in the mode the panel was left in", async () => {
+      localStorage.setItem("langflow-assistant-mode", "ask");
+      const user = userEvent.setup();
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+      await user.click(screen.getByTestId("mock-assistant-send"));
+
+      expect(mockHandleSend).toHaveBeenCalledWith(
+        "direct message",
+        SAVED_MODEL,
+        { mode: "ask" },
+      );
+    });
+
+    it("defaults to a build turn when no mode was ever chosen", async () => {
+      const user = userEvent.setup();
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+      await user.click(screen.getByTestId("mock-assistant-send"));
+
+      expect(mockHandleSend).toHaveBeenCalledWith(
+        "direct message",
+        SAVED_MODEL,
+        { mode: "build" },
+      );
+    });
+
+    it("sends the welcome hand-off as a build turn even if ask was the last mode", async () => {
+      localStorage.setItem("langflow-assistant-mode", "ask");
+      mockPendingMessage = "build a flow";
+
+      render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+      await waitFor(() =>
+        expect(mockHandleSend).toHaveBeenCalledWith(
+          "build a flow",
+          SAVED_MODEL,
+          { mode: "build" },
+        ),
+      );
+      expect(localStorage.getItem("langflow-assistant-mode")).toBe("build");
+    });
+  });
 });

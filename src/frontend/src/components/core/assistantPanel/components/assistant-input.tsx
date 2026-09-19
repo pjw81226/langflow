@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ForwardedIconComponent from "@/components/common/genericIconComponent";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import type { AgenticStepType } from "@/controllers/API/queries/agentic";
 import { useUtilityStore } from "@/stores/utilityStore";
 import { cn } from "@/utils/utils";
 import { getAssistantPlaceholderKey } from "../assistant-panel.constants";
-import type { AssistantModel } from "../assistant-panel.types";
+import type { AssistantMode, AssistantModel } from "../assistant-panel.types";
 import { getRandomPlaceholderMessage } from "../helpers/messages";
 import { useAssistantSelectedModel } from "../hooks/use-assistant-selected-model";
 import { useAutoGrowTextarea } from "../hooks/use-auto-grow-textarea";
@@ -15,6 +15,7 @@ import { useComponentMentions } from "../hooks/use-component-mentions";
 import { useEnabledModels } from "../hooks/use-enabled-models";
 import { useInputHistory } from "../hooks/use-input-history";
 import { AssistantMentionPopover } from "./assistant-mention-popover";
+import { AssistantModeSwitch } from "./assistant-mode-switch";
 import { ModelSelector } from "./model-selector";
 
 // During these steps the message area shows the thinking animation, so the
@@ -90,6 +91,10 @@ interface AssistantInputProps {
   /** Notifies the panel when the @-mention popover opens/closes so it can make
    * room for the upward-opening list in the compact (no-messages) layout. */
   onMentionOpenChange?: (open: boolean) => void;
+  /** Panel mode; drives the idle placeholder. */
+  mode?: AssistantMode;
+  /** When provided, the composer shows the Build | Ask switch. */
+  onModeChange?: (mode: AssistantMode) => void;
 }
 
 export function AssistantInput({
@@ -105,6 +110,8 @@ export function AssistantInput({
   onDraftChange,
   isRefiningPlan = false,
   onMentionOpenChange,
+  mode = "build",
+  onModeChange,
 }: AssistantInputProps) {
   const { t } = useTranslation();
   // Server-owned cap (LANGFLOW_ASSISTANT_MAX_MESSAGE_LENGTH), mirrored through /config so the
@@ -113,8 +120,12 @@ export function AssistantInput({
     (state) => state.assistantMaxMessageLength,
   );
   const [message, setMessage] = useState(draftMessage);
-  // Hold the key and translate on render so the text follows the active language.
-  const [idlePlaceholderKey] = useState(getAssistantPlaceholderKey);
+  // Hold the key and translate on render so the text follows the active
+  // language; pick again when the mode changes.
+  const idlePlaceholderKey = useMemo(
+    () => getAssistantPlaceholderKey(mode),
+    [mode],
+  );
 
   // Show animated placeholder only during post-generation steps (when thinking animation is done)
   const isPostGenerationStep =
@@ -264,6 +275,15 @@ export function AssistantInput({
             onSelect={mentions.confirm}
           />
         )}
+        {onModeChange && (
+          <div className="flex items-center justify-between px-3 pt-2.5">
+            <AssistantModeSwitch
+              mode={mode}
+              onChange={onModeChange}
+              disabled={disabled && !isProcessing}
+            />
+          </div>
+        )}
         <div className="relative">
           <Textarea
             ref={textareaRef}
@@ -288,7 +308,8 @@ export function AssistantInput({
                         GENERATING_PLACEHOLDER_KEY[currentStep]) ||
                         "assistant.workingOnIt",
                     )
-                : isRefiningPlan
+                : // A plan is only ever refined by a build turn.
+                  isRefiningPlan && mode === "build"
                   ? t("assistant.refiningPlanPlaceholder")
                   : (placeholder ?? t(idlePlaceholderKey))
             }
