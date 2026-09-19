@@ -86,7 +86,7 @@ module.exports = {
         {
           type: "doc",
           id: "Flows/langflow-assistant",
-          label: "Build flows and components with Langflow Assistant"
+          label: "Create components and prompts with Langflow Assistant"
         },
       ],
     },
