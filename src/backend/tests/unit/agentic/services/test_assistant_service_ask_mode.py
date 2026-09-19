@@ -16,7 +16,7 @@ from langflow.agentic.services.assistant_service import (
     execute_flow_with_validation,
     execute_flow_with_validation_streaming,
 )
-from langflow.agentic.services.flow_types import ASK_MODE_PREAMBLE, IntentResult
+from langflow.agentic.services.flow_types import ASK_ASSISTANT_FLOW, ASK_MODE_PREAMBLE, IntentResult
 
 MODULE = "langflow.agentic.services.assistant_service"
 
@@ -61,6 +61,7 @@ async def _run_ask(*, answer: str = "Open the Playground.", input_value: str = "
     classify = AsyncMock(return_value=IntentResult(intent="build_flow", translation="build a flow"))
     restore_point = AsyncMock(return_value="version-1")
     with (
+        patch(f"{MODULE}.docs_index_available", return_value=patches.get("docs_index", True)),
         patch(f"{MODULE}.classify_intent", classify),
         patch(f"{MODULE}.create_restore_point", restore_point),
         patch(f"{MODULE}.execute_flow_file_streaming", side_effect=streaming_factory),
@@ -93,6 +94,22 @@ async def test_ask_mode_never_routes_to_the_canvas_building_agent():
     _events, captured, _mocks = await _run_ask(input_value="build me a chatbot flow")
 
     assert not captured["flow_filename"].startswith("flow_builder_assistant"), captured["flow_filename"]
+
+
+@pytest.mark.asyncio
+async def test_ask_mode_routes_to_the_docs_grounded_agent():
+    _events, captured, _mocks = await _run_ask()
+
+    assert captured["flow_filename"] == ASK_ASSISTANT_FLOW
+
+
+@pytest.mark.asyncio
+async def test_ask_mode_falls_back_to_the_default_flow_without_a_docs_index():
+    """A package built without the index still answers, from the live site, under the same rules."""
+    _events, captured, _mocks = await _run_ask(docs_index=False)
+
+    assert captured["flow_filename"] == "TestFlow"
+    assert ASK_MODE_PREAMBLE.strip() in captured["input_value"]
 
 
 @pytest.mark.asyncio
@@ -131,11 +148,12 @@ async def test_ask_mode_does_not_validate_a_python_sample_as_a_component():
 
 
 @pytest.mark.asyncio
-async def test_ask_mode_states_the_read_only_contract_and_omits_the_build_hint():
+async def test_ask_mode_omits_the_build_hint_and_leaves_the_contract_to_the_ask_prompt():
     _events, captured, _mocks = await _run_ask()
 
-    assert ASK_MODE_PREAMBLE.strip() in captured["input_value"]
     assert "[Available language models" not in captured["input_value"]
+    # The dedicated agent carries the read-only rules in its system prompt.
+    assert ASK_MODE_PREAMBLE.strip() not in captured["input_value"]
 
 
 @pytest.mark.asyncio
@@ -181,6 +199,7 @@ async def test_non_streaming_ask_mode_answers_once_without_component_validation(
         return {"result": PYTHON_SAMPLE}
 
     with (
+        patch.object(assistant_service, "docs_index_available", return_value=False),
         patch.object(assistant_service, "execute_flow_file", side_effect=fake_execute_flow_file),
         patch.object(assistant_service, "drain_flow_events", return_value=[{"action": "set_flow"}]),
     ):
@@ -192,8 +211,104 @@ async def test_non_streaming_ask_mode_answers_once_without_component_validation(
         )
 
     assert len(calls) == 1
+    assert calls[0]["flow_filename"] == "TestFlow"
     assert calls[0]["input_value"].startswith(ASK_MODE_PREAMBLE)
     assert result["mode"] == "ask"
     assert "validated" not in result
     assert "has_flow" not in result
     assert "flow_updates" not in result
+
+
+@pytest.mark.asyncio
+async def test_non_streaming_ask_mode_routes_to_the_docs_grounded_agent():
+    calls: list[dict] = []
+
+    async def fake_execute_flow_file(**kwargs) -> dict:
+        calls.append(kwargs)
+        return {"result": "Open the Playground."}
+
+    with (
+        patch.object(assistant_service, "docs_index_available", return_value=True),
+        patch.object(assistant_service, "execute_flow_file", side_effect=fake_execute_flow_file),
+        patch.object(assistant_service, "drain_flow_events", return_value=[]),
+    ):
+        await execute_flow_with_validation(
+            flow_filename="TestFlow",
+            input_value="How do I test a flow?",
+            global_variables={},
+            mode="ask",
+        )
+
+    assert calls[0]["flow_filename"] == ASK_ASSISTANT_FLOW
+    assert calls[0]["input_value"] == "How do I test a flow?"
+
+
+CANVAS_FLOW = {
+    "data": {
+        "nodes": [
+            {"id": "URLComponent-1", "data": {"id": "URLComponent-1", "node": {"display_name": "URL"}}},
+            {"id": "Agent-1", "data": {"id": "Agent-1", "node": {"display_name": "Research helper"}}},
+            {"id": "note-1", "data": {"id": "note-1", "node": {"display_name": ""}}},
+        ],
+        "edges": [],
+    }
+}
+
+
+def test_canvas_display_names_lists_what_the_user_sees_and_skips_unnamed_nodes():
+    legend = assistant_service._canvas_display_names(CANVAS_FLOW)
+
+    assert legend == "names shown on the canvas:\n  URLComponent-1: URL\n  Agent-1: Research helper"
+    assert assistant_service._canvas_display_names({"data": {"nodes": []}}) is None
+    assert assistant_service._canvas_display_names(None) is None
+
+
+async def _run_with_canvas(mode):
+    captured: dict = {}
+
+    def streaming_factory(**kwargs):
+        captured.update(kwargs)
+        return _gen([("end", {"result": "ok"})])
+
+    with (
+        patch(f"{MODULE}.docs_index_available", return_value=True),
+        patch(
+            f"{MODULE}._get_current_flow_summary", new_callable=AsyncMock, return_value="components:\n  Agent-1: Agent"
+        ),
+        patch(f"{MODULE}.get_working_flow", return_value=CANVAS_FLOW),
+        patch(
+            f"{MODULE}.classify_intent",
+            new_callable=AsyncMock,
+            return_value=IntentResult(intent="question", translation="what does this flow do?"),
+        ),
+        patch(f"{MODULE}.execute_flow_file_streaming", side_effect=streaming_factory),
+        patch(f"{MODULE}.drain_flow_events", return_value=[]),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        await _collect(
+            execute_flow_with_validation_streaming(
+                flow_filename="TestFlow",
+                input_value="what does this flow do?",
+                global_variables={},
+                max_retries=1,
+                mode=mode,
+            )
+        )
+    return captured["input_value"]
+
+
+@pytest.mark.asyncio
+async def test_ask_mode_tells_the_agent_the_names_shown_on_the_canvas():
+    """The canvas summary speaks in IDs; a non-developer knows the node by its visible name."""
+    agent_input = await _run_with_canvas("ask")
+
+    assert "names shown on the canvas:" in agent_input
+    assert "Agent-1: Research helper" in agent_input
+    assert "note-1" not in agent_input.split("names shown on the canvas:")[1].split("[End of canvas reference]")[0]
+
+
+@pytest.mark.asyncio
+async def test_other_turns_keep_the_canvas_reference_unchanged():
+    agent_input = await _run_with_canvas(None)
+
+    assert "names shown on the canvas:" not in agent_input

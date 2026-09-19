@@ -36,6 +36,8 @@ VALIDATION_UI_DELAY_SECONDS = 0.3
 MAX_CANVAS_SUMMARY_CHARS = 2000
 LANGFLOW_ASSISTANT_FLOW = "LangflowAssistant.json"
 FLOW_BUILDER_ASSISTANT_FLOW = "flow_builder_assistant"
+# Read-only Q&A agent grounded on the bundled docs index (the panel's Ask mode).
+ASK_ASSISTANT_FLOW = "ask_assistant"
 TRANSLATION_FLOW = "translation_flow.py"
 
 # Verbatim text the frontend sends when the user clicks Continue on a
@@ -61,9 +63,10 @@ EDIT_CONTINUATION_INPUT = (
 # routing; "ask" is a read-only help turn that must never touch the canvas.
 AssistantMode = Literal["build", "ask"]
 
-# Prepended to the agent input on Ask turns. The default assistant flow
-# advertises building, so the turn itself has to state that this one is
-# read-only and where a build request belongs.
+# Prepended to the agent input when an Ask turn has to fall back to the default
+# assistant flow (no docs index shipped). That flow advertises building, so the
+# turn itself has to state that this one is read-only and where a build request
+# belongs. The dedicated Ask flow carries the same rules in its system prompt.
 ASK_MODE_PREAMBLE = (
     "[Panel mode: ASK. This is a read-only help turn. You cannot add, remove, connect, configure, "
     "build or run anything, so never say or imply that you did. Answer the question. If the user "

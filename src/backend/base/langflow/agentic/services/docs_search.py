@@ -42,11 +42,56 @@ _HEADING_WEIGHT = 3
 _TOKEN_RE = re.compile(r"[a-z0-9_]+")
 _MIN_PLURAL_STEM = 3
 _STOPWORDS = frozenset(
-    """
-    a an and are as at be by can do does for from how i if in into is it its my of on or so
-    that the their then there these this to use used using was what when where which who why
-    will with you your
-    """.split()
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "can",
+        "do",
+        "does",
+        "for",
+        "from",
+        "how",
+        "i",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "my",
+        "of",
+        "on",
+        "or",
+        "so",
+        "that",
+        "the",
+        "their",
+        "then",
+        "there",
+        "these",
+        "this",
+        "to",
+        "use",
+        "used",
+        "using",
+        "was",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "you",
+        "your",
+    ]
 )
 
 

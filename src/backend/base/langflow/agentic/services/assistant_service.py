@@ -69,6 +69,7 @@ from langflow.agentic.services.conversation_buffer import (
     get_conversation_buffer,
     history_turn_limit,
 )
+from langflow.agentic.services.docs_search import docs_index_available
 from langflow.agentic.services.file_events import drain_file_events, reset_file_events
 from langflow.agentic.services.flow_executor import (
     execute_flow_file,
@@ -81,6 +82,7 @@ from langflow.agentic.services.flow_structural_validation import (
     structural_failures,
 )
 from langflow.agentic.services.flow_types import (
+    ASK_ASSISTANT_FLOW,
     ASK_MODE_PREAMBLE,
     EDIT_CONTINUATION_INPUT,
     EXECUTION_RETRY_TEMPLATE,
@@ -118,6 +120,38 @@ from langflow.agentic.services.user_components_context import (
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Coroutine
+
+
+def _resolve_ask_flow(default: str) -> str:
+    """Flow that answers an Ask turn.
+
+    The docs-grounded Ask agent when its index shipped with the package;
+    otherwise the default assistant flow, which looks pages up on the live site.
+    """
+    return ASK_ASSISTANT_FLOW if docs_index_available() else default
+
+
+def _canvas_display_names(flow: dict | None) -> str | None:
+    """Legend mapping component IDs to the names the user sees on the canvas.
+
+    The canvas summary speaks in IDs and type names (``URLComponent-Tjh8k: URLComponent``).
+    Someone who is not a developer knows that node as "URL", or by whatever they renamed
+    it to, so an Ask answer needs the visible names to point at the right thing.
+    """
+    nodes = ((flow or {}).get("data") or {}).get("nodes") or []
+    lines = []
+    for node in nodes:
+        data = node.get("data") or {}
+        display_name = ((data.get("node") or {}).get("display_name") or "").strip()
+        node_id = data.get("id") or node.get("id")
+        if display_name and node_id:
+            lines.append(f"  {node_id}: {display_name}")
+    return "names shown on the canvas:\n" + "\n".join(lines) if lines else None
+
+
+def _ask_input(flow_filename: str, text: str) -> str:
+    """Ask-turn input. Only the fallback flow needs the read-only contract spelled out."""
+    return text if flow_filename == ASK_ASSISTANT_FLOW else ASK_MODE_PREAMBLE + text
 
 
 def _flow_verification_enabled() -> bool:
@@ -382,11 +416,12 @@ async def execute_flow_with_validation(
     current_input = sanitization.sanitized_input
 
     if mode == "ask":
+        ask_flow = _resolve_ask_flow(flow_filename)
         set_agent_run_iterations(_iterations_from_globals(global_variables))
         try:
             result = await execute_flow_file(
-                flow_filename=flow_filename,
-                input_value=ASK_MODE_PREAMBLE + current_input,
+                flow_filename=ask_flow,
+                input_value=_ask_input(ask_flow, current_input),
                 global_variables=global_variables,
                 verbose=True,
                 user_id=user_id,
@@ -691,6 +726,8 @@ async def execute_flow_with_validation_streaming(
     # poisoning every later request for that model.
     provisional_remediations: dict[tuple[str | None, str | None], dict] = {}
     is_ask = mode == "ask"
+    if is_ask:
+        flow_filename = _resolve_ask_flow(flow_filename)
 
     def _drain_canvas_events() -> list[dict]:
         """Queued canvas events for this turn. Ask turns are read-only, so they are dropped.
@@ -781,6 +818,10 @@ async def execute_flow_with_validation_streaming(
     # Canvas is read ONCE (seeds the working flow; reused for intent context
     # and the [Current flow on canvas] prefix — a second read costs a DB trip).
     current_flow_summary = await _get_current_flow_summary(global_variables.get("FLOW_ID"), user_id=user_id)
+    if is_ask and current_flow_summary:
+        display_names = _canvas_display_names(get_working_flow())
+        if display_names:
+            current_flow_summary = f"{current_flow_summary}\n\n{display_names}"
 
     # Recent turns + canvas state route follow-up edits to build_flow instead of
     # question/off_topic; same turn budget as the main prompt (honors /history N).
@@ -943,7 +984,7 @@ async def execute_flow_with_validation_streaming(
         )
 
     if is_ask:
-        current_input = ASK_MODE_PREAMBLE + current_input
+        current_input = _ask_input(flow_filename, current_input)
 
     # Capture the original user prompt BEFORE history/canvas injection so we
     # can record it verbatim in the buffer at end-of-turn. The wrapped

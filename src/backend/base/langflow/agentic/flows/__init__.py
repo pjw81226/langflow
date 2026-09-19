@@ -8,12 +8,16 @@ Available flows:
   both ``build_flow`` and ``manage_files`` intents; the FileSystemTool
   toolkit lets the agent write/edit documentation files when asked.
 - LangflowAssistant.json: Main assistant flow for Q&A and component generation (JSON)
+- ask_assistant: Read-only Q&A agent for the panel's Ask mode, grounded on the
+  bundled docs index (Python)
 """
 
+from langflow.agentic.flows.ask_assistant import get_graph as get_ask_assistant_graph
 from langflow.agentic.flows.flow_builder_assistant import get_graph as get_flow_builder_graph
 from langflow.agentic.flows.translation_flow import get_graph as get_translation_flow_graph
 
 __all__ = [
+    "get_ask_assistant_graph",
     "get_flow_builder_graph",
     "get_translation_flow_graph",
 ]
