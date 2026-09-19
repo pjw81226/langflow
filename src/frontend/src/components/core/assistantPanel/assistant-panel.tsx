@@ -104,10 +104,41 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     if (isOpen && isReadOnly) onClose();
   }, [isOpen, isReadOnly, onClose]);
 
+  const canSendWithModel = useCallback(
+    (model: AssistantModel | null) => isCatalogReady && isModelEnabled(model),
+    [isCatalogReady, isModelEnabled],
+  );
+  const {
+    messages,
+    sessionId,
+    isProcessing,
+    currentStep,
+    handleSend,
+    handleApprove,
+    handleUpdateFlowAction,
+    handleApplyFlowProposal,
+    handleRevertFlowProposal,
+    handleDismissFlowProposal,
+    handleApprovePlan,
+    handleDismissPlan,
+    handleResetPlan,
+    handleAcknowledgeValidation,
+    isRefiningPlan,
+    skipAll,
+    handleRetry,
+    handleMarkReverted,
+    handleStopGeneration,
+    handleClearHistory,
+    loadSession,
+  } = useAssistantChat({ canUseModel: canSendWithModel });
+
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: PointerEvent) => {
+      // A running turn locks the canvas and disables the toggle button, so a
+      // stray click here would leave only the hotkey to get the panel back.
+      if (isProcessing) return;
       const target = e.target as Node;
       // Don't close if clicking inside the panel
       if (panelRef.current && panelRef.current.contains(target)) return;
@@ -136,34 +167,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     document.addEventListener("pointerdown", handleClickOutside, true);
     return () =>
       document.removeEventListener("pointerdown", handleClickOutside, true);
-  }, [isOpen, onClose]);
-  const canSendWithModel = useCallback(
-    (model: AssistantModel | null) => isCatalogReady && isModelEnabled(model),
-    [isCatalogReady, isModelEnabled],
-  );
-  const {
-    messages,
-    sessionId,
-    isProcessing,
-    currentStep,
-    handleSend,
-    handleApprove,
-    handleUpdateFlowAction,
-    handleApplyFlowProposal,
-    handleRevertFlowProposal,
-    handleDismissFlowProposal,
-    handleApprovePlan,
-    handleDismissPlan,
-    handleResetPlan,
-    handleAcknowledgeValidation,
-    isRefiningPlan,
-    skipAll,
-    handleRetry,
-    handleMarkReverted,
-    handleStopGeneration,
-    handleClearHistory,
-    loadSession,
-  } = useAssistantChat({ canUseModel: canSendWithModel });
+  }, [isOpen, isProcessing, onClose]);
   const handleAuthorizedSend = useCallback(
     (content: string, model: AssistantModel | null) => {
       if (!canSendWithModel(model)) return;
