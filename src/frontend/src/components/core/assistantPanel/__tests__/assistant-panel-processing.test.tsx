@@ -1,7 +1,10 @@
 import { fireEvent, render } from "@testing-library/react";
 import { AssistantPanel } from "../assistant-panel";
+import type { AssistantMessage } from "../assistant-panel.types";
 
 let mockIsProcessing = false;
+let mockMessages: AssistantMessage[] = [];
+const mockSetAssistantProcessing = jest.fn();
 
 jest.mock("@/components/ui/sidebar", () => ({
   useSidebar: () => ({ open: false }),
@@ -15,7 +18,7 @@ jest.mock("@/stores/assistantManagerStore", () => ({
   __esModule: true,
   default: (
     selector: (state: { setAssistantProcessing: jest.Mock }) => unknown,
-  ) => selector({ setAssistantProcessing: jest.fn() }),
+  ) => selector({ setAssistantProcessing: mockSetAssistantProcessing }),
 }));
 
 jest.mock("@/stores/flowBuilderWelcomeStore", () => ({
@@ -82,7 +85,7 @@ jest.mock("../hooks", () => ({
     isModelEnabled: () => true,
   }),
   useAssistantChat: () => ({
-    messages: [],
+    messages: mockMessages,
     sessionId: "session-1",
     isProcessing: mockIsProcessing,
     currentStep: null,
@@ -112,11 +115,75 @@ jest.mock("../hooks", () => ({
   }),
 }));
 
-describe("AssistantPanel outside click", () => {
-  beforeEach(() => {
-    mockIsProcessing = false;
+function streamingReply(mode?: "build" | "ask"): AssistantMessage[] {
+  return [
+    {
+      id: "user-1",
+      role: "user",
+      content: "hello",
+      timestamp: new Date(),
+      status: "complete",
+      mode,
+    },
+    {
+      id: "assistant-1",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      status: "streaming",
+      mode,
+    },
+  ];
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockIsProcessing = false;
+  mockMessages = [];
+});
+
+describe("AssistantPanel canvas lock", () => {
+  it("should_lock_the_canvas_while_a_build_turn_streams", () => {
+    mockIsProcessing = true;
+    mockMessages = streamingReply("build");
+
+    render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(true);
   });
 
+  it("should_leave_the_canvas_editable_while_an_ask_turn_streams", () => {
+    mockIsProcessing = true;
+    mockMessages = streamingReply("ask");
+
+    render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
+    expect(mockSetAssistantProcessing).not.toHaveBeenCalledWith(true);
+  });
+
+  it("should_treat_a_turn_without_a_mode_as_a_build_turn", () => {
+    // Sessions saved before modes existed.
+    mockIsProcessing = true;
+    mockMessages = streamingReply(undefined);
+
+    render(<AssistantPanel isOpen onClose={jest.fn()} />);
+
+    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(true);
+  });
+
+  it("should_release_the_lock_when_the_panel_unmounts_mid_turn", () => {
+    mockIsProcessing = true;
+    mockMessages = streamingReply("build");
+
+    const { unmount } = render(<AssistantPanel isOpen onClose={jest.fn()} />);
+    unmount();
+
+    expect(mockSetAssistantProcessing).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("AssistantPanel outside click", () => {
   it("should_close_when_the_canvas_is_clicked_while_idle", () => {
     const onClose = jest.fn();
     render(<AssistantPanel isOpen onClose={onClose} />);

@@ -211,10 +211,16 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   const setAssistantProcessing = useAssistantManagerStore(
     (state) => state.setAssistantProcessing,
   );
+  // An ask turn is read-only, so the canvas stays editable while it streams.
+  // Messages stored before modes existed carry none and count as build turns.
+  const streamingMode = messages.find(
+    (m) => m.role === "assistant" && m.status === "streaming",
+  )?.mode;
+  const locksCanvas = isProcessing && streamingMode !== "ask";
   useEffect(() => {
-    setAssistantProcessing(isProcessing);
+    setAssistantProcessing(locksCanvas);
     return () => setAssistantProcessing(false);
-  }, [isProcessing, setAssistantProcessing]);
+  }, [locksCanvas, setAssistantProcessing]);
 
   // Welcome hand-off: fire the stashed prompt once open with a model (localStorage
   // read avoids racing ModelSelector auto-select), then clear to prevent replay.
