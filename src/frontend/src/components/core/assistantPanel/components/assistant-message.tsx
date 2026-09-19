@@ -9,7 +9,6 @@ import { getRandomThinkingMessage } from "../helpers/messages";
 import { AssistantBuildTasks } from "./assistant-build-tasks";
 import { AssistantMessageBody } from "./assistant-message-body";
 import { AssistantModelNotice } from "./assistant-model-notice";
-import { AssistantRevertAction } from "./assistant-revert-action";
 import { AssistantTestResult } from "./assistant-test-result";
 import { FileContentModal } from "./file-content-modal";
 
@@ -42,14 +41,6 @@ interface AssistantMessageItemProps {
    * close/reopen doesn't bring the gate back.
    */
   onAcknowledgeValidation?: (messageId: string) => void;
-  /**
-   * v1 scope: the Revert action renders ONLY on the latest assistant
-   * message with a restore point — older ones are hidden to avoid
-   * mid-chain restore confusion.
-   */
-  isLatestRestorePoint?: boolean;
-  /** Marks the message as reverted after a successful restore. */
-  onReverted?: (messageId: string) => void;
   /**
    * Actions of the test result card. Only the latest result gets them: a
    * "Test again" on an old card would read as testing that old state.
@@ -112,8 +103,6 @@ export function AssistantMessageItem({
   onRetry,
   skipApprovalGate = false,
   onAcknowledgeValidation,
-  isLatestRestorePoint = false,
-  onReverted,
   onTestFlow,
   onFixFlow,
   onOpenPlayground,
@@ -283,21 +272,6 @@ export function AssistantMessageItem({
               }
             />
           )}
-          {!isUser &&
-            message.status === "complete" &&
-            message.restoreVersionId &&
-            isLatestRestorePoint &&
-            // Gated proposals own their revert via the card's Revert button;
-            // suppress the version-based footer so there is a single affordance.
-            // Same for an auto-applied flow while its card can still revert.
-            !message.pendingFlowProposal &&
-            !(message.autoAppliedFlow && message.flowProposalSnapshot) && (
-              <AssistantRevertAction
-                restoreVersionId={message.restoreVersionId}
-                reverted={Boolean(message.reverted)}
-                onReverted={() => onReverted?.(message.id)}
-              />
-            )}
         </div>
       </div>
       {openFilePath && (

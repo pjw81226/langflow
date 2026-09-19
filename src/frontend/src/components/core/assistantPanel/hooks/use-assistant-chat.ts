@@ -235,7 +235,7 @@ export function useAssistantChat(
 
       if (reuseId) {
         // Reset the slot in place ("streaming" keeps the loader mounted);
-        // clearing inProgressTask/reverted stops a prior turn bleeding in.
+        // clearing inProgressTask stops a prior turn bleeding in.
         updateMessage(reuseId, () => ({
           content: "",
           status: "streaming" as const,
@@ -245,7 +245,6 @@ export function useAssistantChat(
           pendingPlanProposal: undefined,
           planProposalStatus: undefined,
           inProgressTask: undefined,
-          reverted: undefined,
           hidden: false,
         }));
       } else {
@@ -551,10 +550,6 @@ export function useAssistantChat(
                   typeof event.data.duration_seconds === "number"
                     ? event.data.duration_seconds * 1000
                     : undefined,
-                // No canvas change on an ask turn, so no revert point to offer.
-                restoreVersionId: isAskTurn
-                  ? undefined
-                  : event.data.restore_version_id,
                 // Silent model failures the turn recovered from — shown as an (i)
                 // so a background swap/retry is never invisible to the user.
                 notices: event.data.notices,
@@ -759,7 +754,6 @@ export function useAssistantChat(
       updateMessage(messageId, () => ({
         flowProposalStatus: "applied" as const,
         flowProposalSnapshot: snapshot,
-        reverted: false,
       }));
 
       // Minimize a floating panel so the just-accepted canvas is immediately
@@ -862,13 +856,6 @@ export function useAssistantChat(
   const handleAcknowledgeValidation = useCallback(
     (messageId: string) => {
       updateMessage(messageId, () => ({ validationAcknowledged: true }));
-    },
-    [updateMessage],
-  );
-
-  const handleMarkReverted = useCallback(
-    (messageId: string) => {
-      updateMessage(messageId, () => ({ reverted: true }));
     },
     [updateMessage],
   );
@@ -980,7 +967,6 @@ export function useAssistantChat(
     skipAll,
     toggleSkipAll,
     handleRetry,
-    handleMarkReverted,
     handleStopGeneration,
     handleClearHistory,
     loadSession,

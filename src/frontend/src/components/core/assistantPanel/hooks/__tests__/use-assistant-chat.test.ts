@@ -1516,45 +1516,6 @@ describe("useAssistantChat", () => {
       expect(msg?.pendingFlowProposal).toBeDefined();
     });
 
-    it("should_clear_reverted_when_proposal_is_reapplied", async () => {
-      // Regression: the "Reverted" marker stuck forever. Re-applying the same
-      // proposal mutates the canvas anew, so Revert must be offered again.
-      mockPostAssistStream.mockImplementation(
-        async (_request: unknown, callbacks: Record<string, Function>) => {
-          callbacks.onFlowUpdate({
-            event: "flow_update",
-            action: "set_flow",
-            flow: SAMPLE_FLOW,
-          });
-          callbacks.onComplete({
-            event: "complete",
-            data: { result: "Flow built", validated: true, has_flow: true },
-          });
-        },
-      );
-
-      const { result } = renderHook(() => useAssistantChat());
-      await act(async () => {
-        await result.current.handleSend("build chatbot", TEST_MODEL);
-      });
-
-      const messageId = result.current.messages[1].id;
-
-      act(() => {
-        result.current.handleMarkReverted(messageId);
-      });
-      expect(
-        result.current.messages.find((m) => m.id === messageId)?.reverted,
-      ).toBe(true);
-
-      await act(async () => {
-        result.current.handleApplyFlowProposal(messageId);
-      });
-      expect(
-        result.current.messages.find((m) => m.id === messageId)?.reverted,
-      ).toBe(false);
-    });
-
     it("should_keep_pendingFlowProposal_without_touching_canvas_when_dismissed", async () => {
       mockPostAssistStream.mockImplementation(
         async (_request: unknown, callbacks: Record<string, Function>) => {

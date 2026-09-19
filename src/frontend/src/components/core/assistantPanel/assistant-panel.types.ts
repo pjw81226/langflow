@@ -111,12 +111,6 @@ export interface AssistantMessage {
    * the backend's ``duration_seconds``). Same units that ``MessageMetadata``
    * expects in the playground. */
   duration?: number;
-  /** Flow version snapshotted BEFORE this turn's canvas edits (additive
-   * ``restore_version_id`` on the SSE complete event) — fuels Revert. */
-  restoreVersionId?: string;
-  /** True once the user reverted the flow to this message's restore point;
-   * the action then renders as a disabled "Reverted" state. */
-  reverted?: boolean;
   /** Non-fatal model errors this turn recovered from (silent fallback/retry).
    * Rendered as an (i) next to the message metadata. */
   notices?: AssistantModelNotice[];

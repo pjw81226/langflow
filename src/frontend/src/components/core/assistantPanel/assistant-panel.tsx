@@ -146,7 +146,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     skipAll,
     toggleSkipAll,
     handleRetry,
-    handleMarkReverted,
     handleStopGeneration,
     handleClearHistory,
     loadSession,
@@ -240,16 +239,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   }, [isDocked, onClose]);
 
   const canRunActions = isCatalogReady && hasEnabledModels && !isProcessing;
-
-  // v1 scope: only the LATEST assistant message with a restore point offers
-  // Revert — restoring an older point mid-chain would confuse the timeline.
-  const latestRestorePointId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role === "assistant" && m.restoreVersionId) return m.id;
-    }
-    return undefined;
-  }, [messages]);
 
   const { sessions, saveCurrentSession, switchSession, deleteSession } =
     useSessionHistory(sessionId, messages, loadSession);
@@ -476,8 +465,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   }
                   skipApprovalGate={skipAll}
                   onAcknowledgeValidation={handleAcknowledgeValidation}
-                  isLatestRestorePoint={msg.id === latestRestorePointId}
-                  onReverted={handleMarkReverted}
                   {...(msg.id === latestTestResultId && canRunActions
                     ? {
                         onTestFlow: () => void handleTestFlow(null),

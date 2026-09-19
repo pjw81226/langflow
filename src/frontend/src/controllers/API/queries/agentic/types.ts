@@ -67,10 +67,6 @@ export interface AgenticCompleteData {
   /** Wall-clock duration of the turn, measured server-side around the whole
    * pipeline. Rendered as the duration half of the cost badge. */
   duration_seconds?: number;
-  /** Flow version snapshotted BEFORE a canvas-mutating turn — a rollback
-   * point restorable via the flow versions API/UI. Absent for question
-   * turns, empty canvases, or when snapshotting failed. */
-  restore_version_id?: string;
   /** Non-fatal model errors this turn recovered from (the chosen model failed
    * silently in the background and the assistant fell back / retried). Rendered
    * as an (i) next to the message so the swap is not hidden. Absent when the

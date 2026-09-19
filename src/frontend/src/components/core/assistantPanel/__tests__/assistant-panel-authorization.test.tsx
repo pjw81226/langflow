@@ -124,7 +124,6 @@ jest.mock("../hooks", () => ({
     isRefiningPlan: false,
     skipAll: false,
     handleRetry: jest.fn(),
-    handleMarkReverted: jest.fn(),
     handleStopGeneration: jest.fn(),
     handleClearHistory: jest.fn(),
     loadSession: jest.fn(),

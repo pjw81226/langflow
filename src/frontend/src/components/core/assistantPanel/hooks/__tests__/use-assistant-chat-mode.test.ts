@@ -253,7 +253,7 @@ describe("useAssistantChat — panel mode", () => {
       ).toBeUndefined();
     });
 
-    it("should_not_offer_a_revert_point_or_a_continuation", async () => {
+    it("should_not_offer_a_continuation", async () => {
       streamOnce((callbacks) =>
         callbacks.onComplete({
           event: "complete",
@@ -261,7 +261,6 @@ describe("useAssistantChat — panel mode", () => {
             result: "An Agent picks tools.",
             validated: false,
             mode: "ask",
-            restore_version_id: "version-1",
             continuation_expected: true,
           },
         }),
@@ -278,7 +277,6 @@ describe("useAssistantChat — panel mode", () => {
         (m) => m.role === "assistant",
       );
       expect(assistant?.content).toBe("An Agent picks tools.");
-      expect(assistant?.restoreVersionId).toBeUndefined();
       expect(assistant?.continuationExpected).toBe(false);
     });
 

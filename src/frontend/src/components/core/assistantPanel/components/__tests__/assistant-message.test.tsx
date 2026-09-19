@@ -74,24 +74,6 @@ jest.mock("../file-content-modal", () => ({
     open ? <div data-testid={`file-content-modal-${path}`} /> : null,
 }));
 
-// The real AssistantRevertAction pulls react-query + API hooks; the message
-// tests only assert the rendering gate, so a stub with data attrs suffices.
-jest.mock("../assistant-revert-action", () => ({
-  AssistantRevertAction: ({
-    restoreVersionId,
-    reverted,
-  }: {
-    restoreVersionId: string;
-    reverted: boolean;
-  }) => (
-    <div
-      data-testid="assistant-revert-action"
-      data-version-id={restoreVersionId}
-      data-reverted={String(reverted)}
-    />
-  ),
-}));
-
 jest.mock("../assistant-validation-failed", () => ({
   AssistantValidationFailed: ({
     result,
@@ -661,113 +643,6 @@ describe("AssistantMessageItem", () => {
       ).not.toThrow();
       // Unhidden on the SAME fiber: content renders (hooks stayed stable).
       expect(screen.getByText("Working on the flow...")).toBeInTheDocument();
-    });
-  });
-
-  describe("revert action", () => {
-    it("should_render_revert_action_on_latest_complete_message_with_restore_point", () => {
-      const message = createMessage({
-        role: "assistant",
-        content: "Added the component.",
-        status: "complete",
-        restoreVersionId: "ver-1",
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={true} />,
-      );
-
-      const action = screen.getByTestId("assistant-revert-action");
-      expect(action).toBeInTheDocument();
-      expect(action.getAttribute("data-version-id")).toBe("ver-1");
-      expect(action.getAttribute("data-reverted")).toBe("false");
-    });
-
-    it("should_not_render_revert_action_when_message_has_no_restore_point", () => {
-      const message = createMessage({
-        role: "assistant",
-        content: "Just an answer.",
-        status: "complete",
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={true} />,
-      );
-
-      expect(screen.queryByTestId("assistant-revert-action")).toBeNull();
-    });
-
-    it("should_not_render_version_revert_footer_when_message_is_a_gated_proposal", () => {
-      // A gated proposal owns its revert via the card's own Revert button, so
-      // the version-based footer must be suppressed (single affordance).
-      const message = createMessage({
-        role: "assistant",
-        content: "Built a proposed flow.",
-        status: "complete",
-        restoreVersionId: "ver-1",
-        pendingFlowProposal: {
-          flow: {},
-          nodeCount: 5,
-          edgeCount: 5,
-        },
-        flowProposalStatus: "applied",
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={true} />,
-      );
-
-      expect(screen.queryByTestId("assistant-revert-action")).toBeNull();
-    });
-
-    it("should_not_render_revert_action_on_older_restore_point_messages", () => {
-      const message = createMessage({
-        role: "assistant",
-        content: "Older edit.",
-        status: "complete",
-        restoreVersionId: "ver-old",
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={false} />,
-      );
-
-      expect(screen.queryByTestId("assistant-revert-action")).toBeNull();
-    });
-
-    it("should_pass_the_reverted_state_through_to_the_action", () => {
-      const message = createMessage({
-        role: "assistant",
-        content: "Added the component.",
-        status: "complete",
-        restoreVersionId: "ver-1",
-        reverted: true,
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={true} />,
-      );
-
-      expect(
-        screen
-          .getByTestId("assistant-revert-action")
-          .getAttribute("data-reverted"),
-      ).toBe("true");
-    });
-
-    it("should_not_render_revert_action_while_streaming", () => {
-      const message = createMessage({
-        role: "assistant",
-        content: "Working...",
-        status: "streaming",
-        restoreVersionId: "ver-1",
-      });
-
-      render(
-        <AssistantMessageItem message={message} isLatestRestorePoint={true} />,
-      );
-
-      expect(screen.queryByTestId("assistant-revert-action")).toBeNull();
     });
   });
 
