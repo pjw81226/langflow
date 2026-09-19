@@ -4,7 +4,8 @@ import { useAssistantChat } from "../use-assistant-chat";
 
 /**
  * Prompt turns: the request names the field the prompt is for and carries the
- * field's text as it is when the turn is sent.
+ * field's text as it is when the turn is sent. The proposed prompt lands in
+ * the field only through Apply, and Undo puts the old text back.
  */
 
 const mockPostAssistStream = jest.fn();
@@ -29,20 +30,35 @@ jest.mock("@/hooks/flows/use-save-flow", () => ({
   default: () => mockSaveFlow,
 }));
 
+const mockTakeSnapshot = jest.fn();
 jest.mock("@/stores/flowsManagerStore", () => {
   const fn = (selector: (state: { currentFlowId: string }) => unknown) =>
     selector({ currentFlowId: "test-flow-id" });
-  fn.getState = () => ({ currentFlowId: "test-flow-id" });
+  fn.getState = () => ({
+    currentFlowId: "test-flow-id",
+    takeSnapshot: mockTakeSnapshot,
+  });
   return { __esModule: true, default: fn };
 });
 
-let mockNodes: unknown[] = [];
+type MockNode = { id: string };
+let mockNodes: MockNode[] = [];
+let mockEdges: unknown[] = [];
+const mockSetNode = jest.fn(
+  (id: string, update: (old: MockNode) => MockNode) => {
+    mockNodes = mockNodes.map((node) => (node.id === id ? update(node) : node));
+  },
+);
 jest.mock("@/stores/flowStore", () => {
   const state = {
     get nodes() {
       return mockNodes;
     },
-    edges: [],
+    get edges() {
+      return mockEdges;
+    },
+    currentFlow: { id: "test-flow-id", locked: false },
+    setNode: (...args: Parameters<typeof mockSetNode>) => mockSetNode(...args),
   };
   const fn = (selector?: (s: typeof state) => unknown) =>
     selector ? selector(state) : state;
@@ -88,6 +104,11 @@ function agentWithPrompt(value: string | null) {
   };
 }
 
+function promptValue(): unknown {
+  const node = mockNodes[0] as ReturnType<typeof agentWithPrompt>;
+  return node.data.node.template.system_prompt.value;
+}
+
 function requestAt(index: number) {
   return mockPostAssistStream.mock.calls[index][0];
 }
@@ -98,6 +119,7 @@ describe("useAssistantChat — prompt turns", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockNodes = [agentWithPrompt("You are a helpful assistant.")];
+    mockEdges = [];
     mockSaveFlow.mockResolvedValue(undefined);
     mockPostAssistStream.mockResolvedValue(undefined);
   });
@@ -276,5 +298,130 @@ describe("useAssistantChat — prompt turns", () => {
       field_name: "system_prompt",
       field_value: "Edited by hand.",
     });
+  });
+});
+
+describe("useAssistantChat — proposed prompts", () => {
+  const PROPOSAL = {
+    new_value: "Answer in three bullet points.",
+    old_value: "You are a helpful assistant.",
+    component_id: "Agent-1",
+    component_name: "Agent",
+    field: "system_prompt",
+    field_label: "Agent Instructions",
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockNodes = [agentWithPrompt("You are a helpful assistant.")];
+    mockEdges = [];
+    mockSaveFlow.mockResolvedValue(undefined);
+    mockPostAssistStream.mockImplementation(
+      async (_req: unknown, callbacks: StreamCallbacks) =>
+        callbacks.onComplete({
+          event: "complete",
+          data: {
+            result: "Here is a shorter prompt.",
+            mode: "prompt",
+            notices: [],
+            prompt_proposal: PROPOSAL,
+          },
+        }),
+    );
+  });
+
+  async function sendPromptTurn() {
+    const rendered = renderHook(() => useAssistantChat());
+    await act(async () => {
+      await rendered.result.current.handleSend("be brief", TEST_MODEL, {
+        mode: "prompt",
+        promptTarget: TARGET,
+      });
+    });
+    return rendered;
+  }
+
+  function reply(result: { current: ReturnType<typeof useAssistantChat> }) {
+    return result.current.messages.find((m) => m.role === "assistant");
+  }
+
+  it("should_keep_the_proposal_on_the_reply_without_touching_the_canvas", async () => {
+    const { result } = await sendPromptTurn();
+
+    expect(reply(result)).toMatchObject({
+      status: "complete",
+      content: "Here is a shorter prompt.",
+      promptProposal: {
+        newValue: "Answer in three bullet points.",
+        oldValue: "You are a helpful assistant.",
+        componentId: "Agent-1",
+        componentName: "Agent",
+        field: "system_prompt",
+        fieldLabel: "Agent Instructions",
+      },
+    });
+    expect(mockSetNode).not.toHaveBeenCalled();
+  });
+
+  it("should_ignore_a_proposal_on_other_turns", async () => {
+    const { result } = renderHook(() => useAssistantChat());
+    await act(async () => {
+      await result.current.handleSend("what is an Agent?", TEST_MODEL, {
+        mode: "ask",
+      });
+    });
+
+    expect(reply(result)?.promptProposal).toBeUndefined();
+  });
+
+  it("should_apply_after_a_snapshot_and_remember_what_it_replaced", async () => {
+    const { result } = await sendPromptTurn();
+
+    act(() => {
+      result.current.handleApplyPrompt(reply(result)?.id ?? "");
+    });
+
+    expect(mockTakeSnapshot).toHaveBeenCalledTimes(1);
+    expect(mockSetNode).toHaveBeenCalledWith("Agent-1", expect.any(Function));
+    expect(promptValue()).toBe("Answer in three bullet points.");
+    expect(reply(result)?.promptProposal?.replacedValue).toBe(
+      "You are a helpful assistant.",
+    );
+  });
+
+  it("should_undo_back_to_the_replaced_text", async () => {
+    const { result } = await sendPromptTurn();
+    act(() => {
+      result.current.handleApplyPrompt(reply(result)?.id ?? "");
+    });
+
+    act(() => {
+      result.current.handleUndoPrompt(reply(result)?.id ?? "");
+    });
+
+    expect(promptValue()).toBe("You are a helpful assistant.");
+    expect(mockTakeSnapshot).toHaveBeenCalledTimes(2);
+    expect(reply(result)?.promptProposal?.replacedValue).toBeUndefined();
+  });
+
+  it("should_refuse_to_apply_once_the_field_gets_a_connection", async () => {
+    const { result } = await sendPromptTurn();
+    mockEdges = [
+      {
+        id: "edge-1",
+        source: "Prompt-1",
+        target: "Agent-1",
+        targetHandle: "{œfieldNameœ:œsystem_promptœ,œidœ:œAgent-1œ}",
+      },
+    ];
+
+    act(() => {
+      result.current.handleApplyPrompt(reply(result)?.id ?? "");
+    });
+
+    expect(mockSetNode).not.toHaveBeenCalled();
+    expect(mockTakeSnapshot).not.toHaveBeenCalled();
+    expect(promptValue()).toBe("You are a helpful assistant.");
+    expect(reply(result)?.promptProposal?.replacedValue).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ export type AgenticStepType =
   | "validated"
   | "validation_failed"
   | "retrying"
+  | "writing_prompt"
   | "verifying_flow";
 
 export interface AgenticProgressEvent {
@@ -32,6 +33,8 @@ export interface AgenticCompleteData {
   mode?: AssistantMode;
   /** Test turns: the structured outcome of the run. */
   test_result?: AgenticTestResult;
+  /** Prompt turns: the instructions the assistant wrote. */
+  prompt_proposal?: AgenticPromptProposal | null;
   class_name?: string;
   component_code?: string;
   validation_attempts?: number;
@@ -53,6 +56,20 @@ export interface AgenticCompleteData {
    * as an (i) next to the message so the swap is not hidden. Absent when the
    * chosen model worked. */
   notices?: AssistantModelNotice[];
+}
+
+/**
+ * The prompt a Prompt turn wrote. ``component_id`` and ``field`` name the field
+ * it is meant for; without them the prompt can only be copied.
+ */
+export interface AgenticPromptProposal {
+  new_value: string;
+  /** The field's text the request carried; null without a target. */
+  old_value: string | null;
+  component_id: string | null;
+  component_name: string | null;
+  field: string | null;
+  field_label: string | null;
 }
 
 /** A silent, recovered model failure surfaced to the user. */

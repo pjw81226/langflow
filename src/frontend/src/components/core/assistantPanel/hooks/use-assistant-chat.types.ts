@@ -30,6 +30,10 @@ export interface UseAssistantChatReturn {
   /** Saves the flow, then has the backend run it once and report the result. */
   handleTestFlow: (model: AssistantModel | null) => Promise<void>;
   handleApprove: (messageId: string, componentCode?: string) => Promise<void>;
+  /** Writes a proposed prompt into its field and remembers what it replaced. */
+  handleApplyPrompt: (messageId: string) => void;
+  /** Puts back the text an applied prompt replaced. */
+  handleUndoPrompt: (messageId: string) => void;
   /**
    * Mark the component validation gate as acknowledged on the message.
    * Persisted across remounts so panel close/reopen doesn't bring the

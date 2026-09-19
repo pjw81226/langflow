@@ -269,6 +269,22 @@ describe("AssistantMessageItem", () => {
       expect(screen.getByText("Thinking...")).toBeInTheDocument();
     });
 
+    it("should_say_it_is_writing_a_prompt_while_it_does", () => {
+      render(
+        <AssistantMessageItem
+          message={createMessage({
+            content: "",
+            status: "streaming",
+            mode: "prompt",
+            progress: { step: "writing_prompt", attempt: 1, maxAttempts: 1 },
+          })}
+        />,
+      );
+
+      expect(screen.getByText("Writing prompt...")).toBeInTheDocument();
+      expect(screen.queryByTestId("loading-state")).toBeNull();
+    });
+
     it("should show loading state during component generation", () => {
       const message = createMessage({
         role: "assistant",
@@ -471,6 +487,41 @@ describe("AssistantMessageItem", () => {
       // Should render as markdown text, NOT as a component card
       expect(screen.getByTestId("markdown-content")).toBeInTheDocument();
       expect(screen.queryByTestId("component-result")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("proposed prompt", () => {
+    it("should_show_the_answer_then_the_prompt_card", () => {
+      const onApplyPrompt = jest.fn();
+      render(
+        <AssistantMessageItem
+          message={createMessage({
+            content: "Here is a shorter prompt.",
+            mode: "prompt",
+            promptTarget: {
+              componentId: "Agent-1",
+              fieldName: "system_prompt",
+              label: "Agent 2",
+            },
+            promptProposal: {
+              newValue: "Answer in three bullet points.",
+              oldValue: "",
+              componentId: null,
+              componentName: null,
+              field: null,
+              fieldLabel: null,
+            },
+          })}
+          onApplyPrompt={onApplyPrompt}
+        />,
+      );
+
+      expect(screen.getByTestId("markdown-content")).toHaveTextContent(
+        "Here is a shorter prompt.",
+      );
+      expect(screen.getByTestId("assistant-prompt-proposal")).toHaveTextContent(
+        "Answer in three bullet points.",
+      );
     });
   });
 

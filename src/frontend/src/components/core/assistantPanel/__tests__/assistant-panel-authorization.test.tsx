@@ -132,6 +132,8 @@ jest.mock("../hooks", () => ({
     handleSend: mockHandleSend,
     handleTestFlow: jest.fn(),
     handleApprove: jest.fn(),
+    handleApplyPrompt: jest.fn(),
+    handleUndoPrompt: jest.fn(),
     handleAcknowledgeValidation: jest.fn(),
     handleRetry: jest.fn(),
     handleStopGeneration: jest.fn(),

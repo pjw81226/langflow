@@ -321,6 +321,20 @@ describe("AssistantInput", () => {
       ).toBeInTheDocument();
     });
 
+    it("should show 'Writing prompt...' during 'writing_prompt' step", () => {
+      render(
+        <AssistantInput
+          {...defaultProps}
+          isProcessing={true}
+          currentStep="writing_prompt"
+        />,
+      );
+
+      expect(
+        screen.getByPlaceholderText("Writing prompt..."),
+      ).toBeInTheDocument();
+    });
+
     it("should show empty placeholder during post-generation steps", () => {
       render(
         <AssistantInput

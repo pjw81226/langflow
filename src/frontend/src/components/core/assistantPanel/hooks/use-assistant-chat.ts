@@ -17,6 +17,11 @@ import type {
   AssistantMode,
   AssistantModel,
 } from "../assistant-panel.types";
+import {
+  applyPromptProposal,
+  promptProposalFromComplete,
+  undoPromptProposal,
+} from "../helpers/prompt-proposal";
 import { readPromptFieldValue } from "../helpers/prompt-targets";
 import { buildUiGlossary } from "../helpers/ui-glossary";
 import { testResultFromComplete } from "../helpers/verification";
@@ -219,6 +224,9 @@ export function useAssistantChat(
                 status: "complete" as const,
                 content: answer,
                 testResult: testResultFromComplete(event.data),
+                ...(turnMode === "prompt"
+                  ? { promptProposal: promptProposalFromComplete(event.data) }
+                  : {}),
                 result: {
                   content: answer,
                   validated: event.data.validated === true,
@@ -349,6 +357,44 @@ export function useAssistantChat(
     [isProcessing, saveFlow, handleSend, t],
   );
 
+  const handleApplyPrompt = useCallback(
+    (messageId: string) => {
+      const proposal = messages.find((m) => m.id === messageId)?.promptProposal;
+      if (!proposal) return;
+      const replaced = applyPromptProposal(proposal);
+      if (replaced === null) return;
+      updateMessage(messageId, (msg) =>
+        msg.promptProposal
+          ? {
+              promptProposal: {
+                ...msg.promptProposal,
+                replacedValue: replaced,
+              },
+            }
+          : {},
+      );
+    },
+    [messages, updateMessage],
+  );
+
+  const handleUndoPrompt = useCallback(
+    (messageId: string) => {
+      const proposal = messages.find((m) => m.id === messageId)?.promptProposal;
+      if (!proposal || !undoPromptProposal(proposal)) return;
+      updateMessage(messageId, (msg) =>
+        msg.promptProposal
+          ? {
+              promptProposal: {
+                ...msg.promptProposal,
+                replacedValue: undefined,
+              },
+            }
+          : {},
+      );
+    },
+    [messages, updateMessage],
+  );
+
   const handleAcknowledgeValidation = useCallback(
     (messageId: string) => {
       updateMessage(messageId, () => ({ validationAcknowledged: true }));
@@ -399,6 +445,8 @@ export function useAssistantChat(
     handleSend,
     handleTestFlow,
     handleApprove,
+    handleApplyPrompt,
+    handleUndoPrompt,
     handleAcknowledgeValidation,
     handleRetry,
     handleStopGeneration,

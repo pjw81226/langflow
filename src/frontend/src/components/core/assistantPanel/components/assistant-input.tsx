@@ -28,13 +28,16 @@ import { ModelSelector } from "./model-selector";
 const GENERATING_STEPS: AgenticStepType[] = [
   "generating",
   "generating_component",
+  "writing_prompt",
 ];
 
 // Intent-specific placeholder per generating step (no random rotation while
-// the LLM produces an answer or a component). Keys, translated on render.
+// the LLM produces an answer, a component or a prompt). Keys, translated on
+// render.
 const GENERATING_PLACEHOLDER_KEY: Partial<Record<AgenticStepType, string>> = {
   generating: "assistant.generating.response",
   generating_component: "assistant.generating.component",
+  writing_prompt: "assistant.generating.prompt",
 };
 
 // Hook for rotating placeholder messages during post-generation processing

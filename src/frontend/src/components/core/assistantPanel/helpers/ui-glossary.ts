@@ -31,6 +31,10 @@ const GLOSSARY_KEYS = [
   "assistant.newSession",
   "assistant.continue",
   "assistant.componentResult.approve",
+  "assistant.promptTarget.label",
+  "assistant.promptProposal.apply",
+  "assistant.promptProposal.undo",
+  "assistant.promptProposal.copy",
 ] as const;
 
 export function buildUiGlossary(): Record<string, string> | undefined {

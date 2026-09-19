@@ -26,6 +26,8 @@ export interface AssistantMessage {
   action?: "test_flow";
   /** Prompt turns: the component and field the prompt was written for. */
   promptTarget?: PromptTargetRef;
+  /** Prompt turns: the prompt the assistant wrote. */
+  promptProposal?: PromptProposal;
   /** Outcome of the flow's test run, rendered as a result card. */
   testResult?: AgenticTestResult;
   timestamp: Date;
@@ -60,6 +62,20 @@ export interface AssistantMessage {
   /** Non-fatal model errors this turn recovered from (silent fallback/retry).
    * Rendered as an (i) next to the message metadata. */
   notices?: AssistantModelNotice[];
+}
+
+/** A prompt the assistant wrote, and what applying it replaced. */
+export interface PromptProposal {
+  newValue: string;
+  oldValue: string | null;
+  /** Null when no component was chosen: the prompt can only be copied. */
+  componentId: string | null;
+  componentName: string | null;
+  field: string | null;
+  fieldLabel: string | null;
+  /** The field's text that Apply replaced; set while the prompt is applied,
+   * so Undo can put it back. */
+  replacedValue?: string;
 }
 
 /** The field a Prompt turn writes for, as the user picked it. */

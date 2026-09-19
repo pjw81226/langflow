@@ -7,6 +7,7 @@ export type {
   AgenticErrorEvent,
   AgenticProgressEvent,
   AgenticProgressState,
+  AgenticPromptProposal,
   AgenticResult,
   AgenticSSEEvent,
   AgenticStepType,

@@ -13,6 +13,8 @@ import { AssistantTestResult } from "./assistant-test-result";
 interface AssistantMessageItemProps {
   message: AssistantMessage;
   onApprove?: (messageId: string) => void;
+  onApplyPrompt?: (messageId: string) => void;
+  onUndoPrompt?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
   /**
    * Persists the user's acknowledgement of the validation gate (Continue
@@ -61,6 +63,8 @@ function ThinkingIndicator({ message }: { message: string }) {
 export function AssistantMessageItem({
   message,
   onApprove,
+  onApplyPrompt,
+  onUndoPrompt,
   onRetry,
   onAcknowledgeValidation,
   onTestFlow,
@@ -71,7 +75,12 @@ export function AssistantMessageItem({
   const isStreaming = message.status === "streaming";
 
   // Randomized once per message.
-  const thinkingMessage = useMemo(() => getRandomThinkingMessage(), []);
+  const randomThinking = useMemo(() => getRandomThinkingMessage(), []);
+  // Writing a prompt has a label of its own, matching the input placeholder.
+  const thinkingMessage =
+    message.progress?.step === "writing_prompt"
+      ? t("assistant.generating.prompt")
+      : randomThinking;
 
   // Component code streaming in before the first progress event. Only a
   // component turn writes one; an answer may quote code as an example.
@@ -162,6 +171,8 @@ export function AssistantMessageItem({
               message={message}
               isGeneratingCode={isGeneratingCode}
               onApprove={onApprove}
+              onApplyPrompt={onApplyPrompt}
+              onUndoPrompt={onUndoPrompt}
               onRetry={onRetry}
               onAcknowledgeValidation={onAcknowledgeValidation}
             />

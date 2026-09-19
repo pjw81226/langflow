@@ -1,6 +1,6 @@
 /**
  * Plain prose Markdown wrapper used across the assistant panel for
- * non-rich text (file/flow proposal preambles, plan refining context, etc).
+ * non-rich text (e.g. the words before a proposed prompt).
  *
  * For rich rendering that overrides ``code`` / ``a`` components (the agent's
  * primary response body), use the inline `<Markdown>` in

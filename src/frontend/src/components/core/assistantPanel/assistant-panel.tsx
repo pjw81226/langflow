@@ -148,6 +148,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     handleSend,
     handleTestFlow,
     handleApprove,
+    handleApplyPrompt,
+    handleUndoPrompt,
     handleAcknowledgeValidation,
     handleRetry,
     handleStopGeneration,
@@ -463,6 +465,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   key={msg.id}
                   message={msg}
                   onApprove={handleApproveAndClose}
+                  onApplyPrompt={handleApplyPrompt}
+                  onUndoPrompt={handleUndoPrompt}
                   onRetry={
                     isCatalogReady && hasEnabledModels
                       ? handleAuthorizedRetry

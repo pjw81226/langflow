@@ -1,9 +1,9 @@
 /**
  * Body of an assistant chat message — the part that switches between the
- * loading state, the error, the component result and the plain markdown
- * response. Owns the validation-gate acknowledgement state (Continue click /
- * 30s timeout) so the parent `AssistantMessageItem` stays focused on
- * avatar + header layout.
+ * loading state, the error, the component result, the proposed prompt and
+ * the plain markdown response. Owns the validation-gate acknowledgement state
+ * (Continue click / 30s timeout) so the parent `AssistantMessageItem` stays
+ * focused on avatar + header layout.
  */
 
 import { useEffect, useState } from "react";
@@ -13,9 +13,11 @@ import remarkGfm from "remark-gfm";
 import SimplifiedCodeTabComponent from "@/components/core/codeTabsComponent";
 import { extractLanguage, isCodeBlock } from "@/utils/codeBlockUtils";
 import type { AssistantMessage } from "../assistant-panel.types";
+import { ChatMarkdown } from "../helpers/chat-markdown";
 import { AssistantComponentResult } from "./assistant-component-result";
 import { AssistantErrorDetails } from "./assistant-error-details";
 import { AssistantLoadingState } from "./assistant-loading-state";
+import { AssistantPromptProposal } from "./assistant-prompt-proposal";
 import { AssistantValidationFailed } from "./assistant-validation-failed";
 
 // Auto-dismiss the validation gate after this long in a terminal state, so the
@@ -27,6 +29,8 @@ export interface AssistantMessageBodyProps {
   /** True when streaming AND in a rich loading step (component generation). */
   isGeneratingCode: boolean;
   onApprove?: (messageId: string) => void;
+  onApplyPrompt?: (messageId: string) => void;
+  onUndoPrompt?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
   /** Persist the validation-gate acknowledgement onto the message itself. */
   onAcknowledgeValidation?: (messageId: string) => void;
@@ -36,6 +40,8 @@ export function AssistantMessageBody({
   message,
   isGeneratingCode,
   onApprove,
+  onApplyPrompt,
+  onUndoPrompt,
   onRetry,
   onAcknowledgeValidation,
 }: AssistantMessageBodyProps) {
@@ -142,6 +148,20 @@ export function AssistantMessageBody({
         result={message.result}
         onApprove={() => onApprove?.(message.id)}
       />
+    );
+  }
+
+  if (message.promptProposal) {
+    return (
+      <div className="flex flex-col gap-3">
+        {message.content && <ChatMarkdown>{message.content}</ChatMarkdown>}
+        <AssistantPromptProposal
+          proposal={message.promptProposal}
+          targetLabel={message.promptTarget?.label}
+          onApply={() => onApplyPrompt?.(message.id)}
+          onUndo={() => onUndoPrompt?.(message.id)}
+        />
+      </div>
     );
   }
 

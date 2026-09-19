@@ -5,13 +5,13 @@
  * same string.
  *
  *  - GHOST_PRIMARY_BUTTON   — the affirmative action on a card. Examples:
- *    Continue (plan), Add to canvas (flow), Approve (component).
- *  - GHOST_SECONDARY_BUTTON — neutral/destructive secondary actions. Examples:
- *    Dismiss, Reset, Replace canvas, View Code, Open, Download.
+ *    Continue (component ready), Approve (component), Apply (prompt).
+ *  - GHOST_SECONDARY_BUTTON — neutral secondary actions. Examples:
+ *    View Code, Copy, Undo, Test again.
  *
- * Every assistant card (plan, flow, component, file, per-field edit) uses
- * this single ghost/emerald pattern so the affirmative/secondary actions
- * read identically across the panel.
+ * Every assistant card (component, prompt, test result) uses this single
+ * ghost/emerald pattern so the affirmative/secondary actions read
+ * identically across the panel.
  */
 
 export const GHOST_PRIMARY_BUTTON =
