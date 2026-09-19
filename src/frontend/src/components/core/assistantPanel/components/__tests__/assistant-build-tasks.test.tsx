@@ -5,8 +5,12 @@ import type {
 } from "../../assistant-panel.types";
 import { AssistantBuildTasks } from "../assistant-build-tasks";
 
+// Echoes the key, followed by the interpolation values when there are any.
 jest.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key} ${Object.values(params).join(" ")}` : key,
+  }),
   initReactI18next: { type: "3rdParty", init: jest.fn() },
 }));
 
@@ -54,7 +58,9 @@ describe("AssistantBuildTasks", () => {
       makeTask({ action: "add_component", componentType: "ChatInput" }),
     ];
     render(<AssistantBuildTasks tasks={tasks} />);
-    expect(screen.getByText(/Added ChatInput/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("assistant.buildTasks.done.added ChatInput"),
+    ).toBeInTheDocument();
   });
 
   it("should_label_connect_with_source_and_target_ids", () => {
@@ -73,7 +79,9 @@ describe("AssistantBuildTasks", () => {
   it("should_label_configure_with_component_id", () => {
     const tasks = [makeTask({ action: "configure", componentId: "Agent-xyz" })];
     render(<AssistantBuildTasks tasks={tasks} />);
-    expect(screen.getByText(/Configured Agent-xyz/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("assistant.buildTasks.done.configured Agent-xyz"),
+    ).toBeInTheDocument();
   });
 
   it("should_label_remove_component_with_component_id", () => {
@@ -81,7 +89,9 @@ describe("AssistantBuildTasks", () => {
       makeTask({ action: "remove_component", componentId: "ChatInput-abc" }),
     ];
     render(<AssistantBuildTasks tasks={tasks} />);
-    expect(screen.getByText(/Removed ChatInput-abc/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("assistant.buildTasks.done.removed ChatInput-abc"),
+    ).toBeInTheDocument();
   });
 
   // Build tasks are pure RESULTS (completed ops, no human-in-the-loop), so
@@ -118,7 +128,7 @@ describe("AssistantBuildTasks", () => {
         screen.getByTestId("assistant-build-task-in-progress"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("assistant.buildTasks.inProgress.adding"),
+        screen.getByText("assistant.buildTasks.inProgress.adding ChatInput"),
       ).toBeInTheDocument();
       expect(container.querySelector(".animate-spin")).not.toBeNull();
     });
@@ -135,7 +145,9 @@ describe("AssistantBuildTasks", () => {
           })}
         />,
       );
-      expect(screen.getByText(/Added ChatInput/i)).toBeInTheDocument();
+      expect(
+        screen.getByText("assistant.buildTasks.done.added ChatInput"),
+      ).toBeInTheDocument();
       expect(
         screen.getByText("assistant.buildTasks.inProgress.wiring"),
       ).toBeInTheDocument();
@@ -161,7 +173,7 @@ describe("AssistantBuildTasks", () => {
         />,
       );
       expect(
-        screen.getByText("assistant.buildTasks.inProgress.adding"),
+        screen.getByText("assistant.buildTasks.inProgress.adding ChatInput"),
       ).toBeInTheDocument();
       expect(container.querySelector(".animate-spin")).toBeNull();
       expect(container.querySelector(".text-destructive")).not.toBeNull();
@@ -201,7 +213,7 @@ describe("AssistantBuildTasks", () => {
     const locales = ["de", "en", "es", "fr", "ja", "ko", "pt", "zh-Hans"];
 
     it.each(locales)(
-      "locale %s has every inProgress key used by the component",
+      "locale %s has every key used by the component",
       (locale) => {
         // Divergence guard: a key missing in one language is a bug.
         const messages = require(`@/locales/${locale}.json`);
@@ -215,6 +227,12 @@ describe("AssistantBuildTasks", () => {
           "assistant.buildTasks.inProgress.applyingTemplate",
           "assistant.buildTasks.inProgress.working",
           "assistant.buildTasks.inProgress.component",
+          "assistant.buildTasks.done.added",
+          "assistant.buildTasks.done.removed",
+          "assistant.buildTasks.done.configured",
+          "assistant.buildTasks.done.wired",
+          "assistant.buildTasks.source",
+          "assistant.buildTasks.target",
         ];
         for (const key of requiredKeys) {
           expect(messages[key]).toBeTruthy();

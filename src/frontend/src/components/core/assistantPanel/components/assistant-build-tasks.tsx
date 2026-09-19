@@ -57,7 +57,7 @@ export function AssistantBuildTasks({
           className="flex items-center gap-2 text-sm text-muted-foreground"
         >
           {renderIcon(task)}
-          <span>{renderLabel(task)}</span>
+          <span>{renderLabel(t, task)}</span>
           <Check className="h-3.5 w-3.5 text-accent-emerald-foreground" />
         </li>
       ))}
@@ -123,15 +123,25 @@ function renderIcon(task: BuildTask) {
   }
 }
 
-function renderLabel(task: BuildTask) {
+function renderLabel(t: Translate, task: BuildTask) {
+  const fallbackName = t("assistant.buildTasks.inProgress.component");
   switch (task.action) {
     case "add_component":
-      return `Added ${task.componentType ?? task.componentId ?? "component"}`;
+      return t("assistant.buildTasks.done.added", {
+        name: task.componentType ?? task.componentId ?? fallbackName,
+      });
     case "remove_component":
-      return `Removed ${task.componentId ?? "component"}`;
+      return t("assistant.buildTasks.done.removed", {
+        name: task.componentId ?? fallbackName,
+      });
     case "connect":
-      return `Wired ${task.sourceId ?? "source"} → ${task.targetId ?? "target"}`;
+      return t("assistant.buildTasks.done.wired", {
+        source: task.sourceId ?? t("assistant.buildTasks.source"),
+        target: task.targetId ?? t("assistant.buildTasks.target"),
+      });
     case "configure":
-      return `Configured ${task.componentId ?? "component"}`;
+      return t("assistant.buildTasks.done.configured", {
+        name: task.componentId ?? fallbackName,
+      });
   }
 }
