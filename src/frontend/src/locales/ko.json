@@ -2175,7 +2175,7 @@
   "assistant.promptProposal.undo": "되돌리기",
   "assistant.promptProposal.copy": "복사",
   "assistant.promptProposal.copied": "복사됨",
-  "assistant.promptProposal.copyOnly": "적용할 Component를 고르지 않았습니다. Prompt를 복사해서 필요한 곳에 붙여 넣으세요.",
+  "assistant.promptProposal.copyOnly": "이 Prompt를 넣을 Component가 정해지지 않았습니다. 복사해서 필요한 곳에 붙여 넣으세요.",
   "assistant.promptProposal.nodeMissing": "이 Component가 캔버스에 없습니다. Prompt를 복사해서 쓰세요.",
   "assistant.promptProposal.fieldMissing": "Component에서 이 필드가 보이지 않습니다. Prompt를 복사해서 쓰세요.",
   "assistant.promptProposal.fieldConnected": "이 필드는 연결선으로 값을 받고 있어서 Prompt를 적용할 수 없습니다.",

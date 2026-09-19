@@ -2175,7 +2175,7 @@
   "assistant.promptProposal.undo": "Undo",
   "assistant.promptProposal.copy": "Copy",
   "assistant.promptProposal.copied": "Copied",
-  "assistant.promptProposal.copyOnly": "No component was chosen. Copy the prompt and paste it where you need it.",
+  "assistant.promptProposal.copyOnly": "This prompt isn't tied to a component on the canvas. Copy it and paste it where you need it.",
   "assistant.promptProposal.nodeMissing": "This component is no longer on the canvas. Copy the prompt instead.",
   "assistant.promptProposal.fieldMissing": "The component no longer shows this field. Copy the prompt instead.",
   "assistant.promptProposal.fieldConnected": "This field now gets its value from a connection, so the prompt can't be applied.",

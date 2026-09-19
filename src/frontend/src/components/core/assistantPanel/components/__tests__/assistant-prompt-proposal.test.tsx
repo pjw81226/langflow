@@ -118,7 +118,7 @@ describe("AssistantPromptProposal", () => {
       "copy only",
       { ...PROPOSAL, componentId: null, field: null, oldValue: null },
       {},
-      "No component was chosen. Copy the prompt and paste it where you need it.",
+      "This prompt isn't tied to a component on the canvas. Copy it and paste it where you need it.",
     ],
     [
       "a removed component",
