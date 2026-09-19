@@ -167,33 +167,4 @@ describe("useAssistantChat — test flow", () => {
     expect(mockSaveFlow).not.toHaveBeenCalled();
     expect(mockPostAssistStream).not.toHaveBeenCalled();
   });
-
-  it("should_ask_for_a_fix_as_a_build_turn_that_quotes_the_failure", async () => {
-    completeWith({
-      result: "",
-      validated: false,
-      test_result: {
-        status: "failed",
-        error: {
-          kind: "fixable",
-          message: "NameError: x",
-          component_name: "Parser",
-        },
-      },
-    });
-    const { result } = renderHook(() => useAssistantChat());
-    await act(async () => {
-      await result.current.handleTestFlow(TEST_MODEL);
-    });
-    const failed = result.current.messages.find((m) => m.testResult);
-
-    await act(async () => {
-      await result.current.handleFixFlow(failed?.id ?? "", null);
-    });
-
-    const request = mockPostAssistStream.mock.calls[1][0];
-    expect(request.mode).toBe("build");
-    expect(request.action).toBeUndefined();
-    expect(request.input_value).toContain("Parser: NameError: x");
-  });
 });

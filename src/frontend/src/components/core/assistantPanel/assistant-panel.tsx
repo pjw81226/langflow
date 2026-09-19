@@ -131,7 +131,6 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
     currentStep,
     handleSend,
     handleTestFlow,
-    handleFixFlow,
     handleApprove,
     handleUpdateFlowAction,
     handleApplyFlowProposal,
@@ -465,12 +464,11 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                   }
                   skipApprovalGate={skipAll}
                   onAcknowledgeValidation={handleAcknowledgeValidation}
-                  {...(msg.id === latestTestResultId && canRunActions
-                    ? {
-                        onTestFlow: () => void handleTestFlow(null),
-                        onFixFlow: (id: string) => void handleFixFlow(id, null),
-                      }
-                    : {})}
+                  onTestFlow={
+                    msg.id === latestTestResultId && canRunActions
+                      ? () => void handleTestFlow(null)
+                      : undefined
+                  }
                   onOpenPlayground={
                     msg.id === latestTestResultId && hasChatIO
                       ? handleOpenPlayground

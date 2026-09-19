@@ -11,8 +11,6 @@ import type {
   AgenticTestResult,
 } from "@/controllers/API/queries/agentic";
 
-const NOT_FIXABLE_KINDS = new Set(["external_resource", "timeout"]);
-
 export function testResultFromComplete(
   data: Pick<
     AgenticCompleteData,
@@ -45,10 +43,4 @@ export function stripVerificationCaveat(
 ): string {
   if (!caveat) return text;
   return text.replace(`\n\n⚠️ ${caveat}`, "").trim();
-}
-
-/** "Fix it" is only honest when the assistant can actually change the outcome. */
-export function canOfferFix(result: AgenticTestResult | undefined): boolean {
-  if (result?.status !== "failed") return false;
-  return !NOT_FIXABLE_KINDS.has(result.error?.kind ?? "unknown");
 }

@@ -30,12 +30,6 @@ describe("AssistantTestResult", () => {
     );
   });
 
-  it("should_say_when_a_fix_turn_made_it_pass", () => {
-    render(<AssistantTestResult result={{ status: "passed", fixed: true }} />);
-
-    expect(screen.getByText("Test passed after a fix")).toBeInTheDocument();
-  });
-
   it("should_name_the_component_a_failure_happened_in", () => {
     render(<AssistantTestResult result={FAILED} />);
 
@@ -43,7 +37,7 @@ describe("AssistantTestResult", () => {
     expect(screen.getByText("Failed at: Parser")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Something in the flow is set up wrong. The assistant can try to fix it.",
+        "Something in the flow is set up wrong. Check the details and the component's settings.",
       ),
     ).toBeInTheDocument();
   });
@@ -76,25 +70,16 @@ describe("AssistantTestResult", () => {
     expect(screen.getByText("Hi there!")).toBeInTheDocument();
   });
 
-  it("should_offer_a_fix_only_for_a_failure_the_assistant_can_change", () => {
-    const onFix = jest.fn();
-    const { rerender } = render(
-      <AssistantTestResult result={FAILED} onFix={onFix} />,
-    );
-    fireEvent.click(screen.getByTestId("assistant-test-fix-button"));
-    expect(onFix).toHaveBeenCalledTimes(1);
-
-    rerender(
+  it("should_say_what_only_the_user_can_supply", () => {
+    render(
       <AssistantTestResult
         result={{
           status: "needs_attention",
           error: { kind: "external_resource", message: "Check your API key." },
         }}
-        onFix={onFix}
       />,
     );
 
-    expect(screen.queryByTestId("assistant-test-fix-button")).toBeNull();
     expect(screen.getByText("Needs your input to run")).toBeInTheDocument();
     expect(
       screen.getByText(/needs something only you can provide/),
@@ -134,23 +119,6 @@ describe("AssistantTestResult", () => {
     render(<AssistantTestResult result={FAILED} onTestAgain={jest.fn()} />);
 
     expect(screen.getByRole("button", { name: "Test again" })).toBeEnabled();
-  });
-
-  it("should_disable_testing_and_say_why_when_the_flow_is_not_on_the_canvas", () => {
-    render(
-      <AssistantTestResult
-        result={{ status: "skipped" }}
-        onTestAgain={jest.fn()}
-        testBlockedReason="Add the flow to the canvas before testing."
-      />,
-    );
-
-    const button = screen.getByTestId("assistant-test-again-button");
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute(
-      "title",
-      "Add the flow to the canvas before testing.",
-    );
   });
 
   it("should_disable_testing_on_a_card_that_is_no_longer_the_latest", () => {

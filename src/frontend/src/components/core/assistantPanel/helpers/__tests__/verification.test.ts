@@ -1,5 +1,4 @@
 import {
-  canOfferFix,
   stripVerificationCaveat,
   testResultFromComplete,
 } from "../verification";
@@ -32,7 +31,6 @@ describe("testResultFromComplete", () => {
 
     expect(result?.status).toBe("needs_attention");
     expect(result?.error?.message).toBe("I couldn't fully run it here.");
-    expect(canOfferFix(result)).toBe(false);
   });
 
   it("should_report_nothing_when_the_turn_ran_no_test", () => {
@@ -63,35 +61,5 @@ describe("stripVerificationCaveat", () => {
     expect(stripVerificationCaveat("Built the flow.", undefined)).toBe(
       "Built the flow.",
     );
-  });
-});
-
-describe("canOfferFix", () => {
-  it("should_offer_a_fix_for_a_failure_the_assistant_can_change", () => {
-    expect(canOfferFix({ status: "failed", error: { kind: "fixable" } })).toBe(
-      true,
-    );
-    expect(canOfferFix({ status: "failed", error: { kind: "unknown" } })).toBe(
-      true,
-    );
-    expect(canOfferFix({ status: "failed" })).toBe(true);
-  });
-
-  it.each(["external_resource", "timeout"])(
-    "should_not_offer_a_fix_for_%s",
-    (kind) => {
-      expect(canOfferFix({ status: "failed", error: { kind } })).toBe(false);
-    },
-  );
-
-  it.each(["passed", "needs_attention", "skipped"] as const)(
-    "should_not_offer_a_fix_when_the_status_is_%s",
-    (status) => {
-      expect(canOfferFix({ status })).toBe(false);
-    },
-  );
-
-  it("should_not_offer_a_fix_without_a_result", () => {
-    expect(canOfferFix(undefined)).toBe(false);
   });
 });

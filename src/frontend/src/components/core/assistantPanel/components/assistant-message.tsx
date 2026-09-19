@@ -46,7 +46,6 @@ interface AssistantMessageItemProps {
    * "Test again" on an old card would read as testing that old state.
    */
   onTestFlow?: () => void;
-  onFixFlow?: (messageId: string) => void;
   onOpenPlayground?: () => void;
 }
 
@@ -104,7 +103,6 @@ export function AssistantMessageItem({
   skipApprovalGate = false,
   onAcknowledgeValidation,
   onTestFlow,
-  onFixFlow,
   onOpenPlayground,
 }: AssistantMessageItemProps) {
   const { t } = useTranslation();
@@ -253,23 +251,7 @@ export function AssistantMessageItem({
             <AssistantTestResult
               result={message.testResult}
               onTestAgain={onTestFlow}
-              onFix={onFixFlow ? () => onFixFlow(message.id) : undefined}
               onOpenPlayground={onOpenPlayground}
-              // A proposal that was never put on the canvas cannot be tested:
-              // the run would exercise the old canvas.
-              // A change that is only proposed is not on the canvas yet: a test
-              // now would exercise the old flow and report on the wrong thing.
-              testBlockedReason={
-                message.pendingFlowProposal &&
-                message.flowProposalStatus !== "applied" &&
-                !message.flowProposalSnapshot
-                  ? t("assistant.test.applyFirst")
-                  : message.flowActions?.some(
-                        (action) => action.status === "pending",
-                      )
-                    ? t("assistant.test.applyEditsFirst")
-                    : undefined
-              }
             />
           )}
         </div>

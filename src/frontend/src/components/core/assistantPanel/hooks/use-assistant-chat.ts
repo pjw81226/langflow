@@ -673,26 +673,6 @@ export function useAssistantChat(
     [isProcessing, saveFlow, handleSend, t],
   );
 
-  const handleFixFlow = useCallback(
-    async (messageId: string, model: AssistantModel | null) => {
-      const target = model ?? lastModelRef.current;
-      const failure = messages.find((m) => m.id === messageId)?.testResult
-        ?.error;
-      if (isProcessing || !target) return;
-      // Fixing changes the canvas, so it is always a build turn.
-      await handleSend(
-        t("assistant.test.fixPrompt", {
-          error: [failure?.component_name, failure?.message]
-            .filter(Boolean)
-            .join(": "),
-        }),
-        target,
-        { mode: "build" },
-      );
-    },
-    [isProcessing, messages, handleSend, t],
-  );
-
   const handleUpdateFlowAction = useCallback(
     async (
       messageId: string,
@@ -952,7 +932,6 @@ export function useAssistantChat(
     currentStep,
     handleSend,
     handleTestFlow,
-    handleFixFlow,
     handleApprove,
     handleUpdateFlowAction,
     handleApplyFlowProposal,

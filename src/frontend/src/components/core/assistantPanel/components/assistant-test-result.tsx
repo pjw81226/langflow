@@ -18,7 +18,6 @@ import {
   ChevronUp,
   CircleDashed,
   Play,
-  Wrench,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
@@ -29,18 +28,13 @@ import {
   GHOST_PRIMARY_BUTTON,
   GHOST_SECONDARY_BUTTON,
 } from "../helpers/button-styles";
-import { canOfferFix } from "../helpers/verification";
 
 interface AssistantTestResultProps {
   result: AgenticTestResult;
   /** Re-run the test. Omitted while it cannot run (a turn is in progress). */
   onTestAgain?: () => void;
-  /** Ask the assistant to fix the flow. Only offered when a fix is possible. */
-  onFix?: () => void;
   /** Open the Playground beside the canvas. Omitted when the flow has no chat I/O. */
   onOpenPlayground?: () => void;
-  /** Why testing is unavailable right now (e.g. the proposal is not on the canvas yet). */
-  testBlockedReason?: string;
 }
 
 const KNOWN_KINDS = new Set([
@@ -80,9 +74,7 @@ const STATUS_STYLE: Record<
 export function AssistantTestResult({
   result,
   onTestAgain,
-  onFix,
   onOpenPlayground,
-  testBlockedReason,
 }: AssistantTestResultProps) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
@@ -93,9 +85,7 @@ export function AssistantTestResult({
 
   const headline =
     result.status === "passed"
-      ? result.fixed
-        ? t("assistant.test.passedFixed")
-        : t("assistant.test.passed")
+      ? t("assistant.test.passed")
       : result.status === "failed"
         ? t("assistant.test.failed")
         : result.status === "needs_attention"
@@ -218,17 +208,6 @@ export function AssistantTestResult({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1">
-        {canOfferFix(result) && onFix && (
-          <button
-            type="button"
-            data-testid="assistant-test-fix-button"
-            className={GHOST_PRIMARY_BUTTON}
-            onClick={onFix}
-          >
-            <Wrench className="h-3.5 w-3.5" />
-            <span>{t("assistant.test.fixIt")}</span>
-          </button>
-        )}
         <button
           type="button"
           data-testid="assistant-test-again-button"
@@ -237,8 +216,7 @@ export function AssistantTestResult({
             "disabled:pointer-events-none disabled:opacity-40",
           )}
           onClick={onTestAgain}
-          disabled={!onTestAgain || Boolean(testBlockedReason)}
-          title={testBlockedReason}
+          disabled={!onTestAgain}
         >
           <Play className="h-3.5 w-3.5" />
           <span>
