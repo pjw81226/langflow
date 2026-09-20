@@ -33,6 +33,7 @@ from langflow.agentic.services.conversation_history import (
 from langflow.agentic.services.flow_test import run_flow_test
 from langflow.agentic.services.flow_test import summarize as summarize_flow_test
 from langflow.agentic.services.flow_types import ASK_ASSISTANT_FLOW
+from langflow.agentic.services.next_steps import extract_next_steps
 from langflow.agentic.services.prompt_turn import run_prompt_turn
 from langflow.agentic.services.turn_runtime import AgentRun, TurnState, run_agent
 from langflow.agentic.services.user_components_context import reset_current_user_id, set_current_user_id
@@ -53,7 +54,7 @@ _EMPTY_RESULT_FIELDS: dict[str, dict] = {
         "validation_error": None,
     },
     "prompt": {"prompt_proposal": None},
-    "ask": {},
+    "ask": {"next_steps": []},
 }
 
 _UNEXPECTED_ERROR = "Something went wrong while the assistant was working. Try again."
@@ -118,12 +119,15 @@ async def _run_ask_turn(
     if run.error:
         yield turn.error(run.error, run.raw_error)
         return
-    yield turn.complete({"result": run.text})
+    # The agent appends its follow-up suggestions to the answer; they become
+    # buttons, so they leave the text the panel renders.
+    answer, next_steps = extract_next_steps(run.text)
+    yield turn.complete({"result": answer, "next_steps": next_steps})
     record_conversation_turn(
         user_id=turn.user_id,
         session_id=turn.session_id,
         user_input=request,
-        assistant_response=run.text,
+        assistant_response=answer,
         mode="ask",
     )
 

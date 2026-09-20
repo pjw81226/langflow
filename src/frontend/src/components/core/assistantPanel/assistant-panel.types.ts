@@ -1,5 +1,6 @@
 import type {
   AgenticErrorDetail,
+  AgenticNextStep,
   AgenticProgressState,
   AgenticResult,
   AgenticTestResult,
@@ -30,6 +31,8 @@ export interface AssistantMessage {
   promptProposal?: PromptProposal;
   /** Outcome of the flow's test run, rendered as a result card. */
   testResult?: AgenticTestResult;
+  /** Ask turns: the follow-ups the answer suggested, rendered as buttons. */
+  nextSteps?: AgenticNextStep[];
   timestamp: Date;
   status?: AssistantMessageStatus;
   progress?: AgenticProgressState;

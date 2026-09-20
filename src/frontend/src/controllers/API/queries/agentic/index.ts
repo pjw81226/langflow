@@ -5,6 +5,7 @@ export type {
   AgenticCompleteEvent,
   AgenticErrorDetail,
   AgenticErrorEvent,
+  AgenticNextStep,
   AgenticProgressEvent,
   AgenticProgressState,
   AgenticPromptProposal,

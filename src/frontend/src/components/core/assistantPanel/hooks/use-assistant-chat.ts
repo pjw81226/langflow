@@ -227,6 +227,9 @@ export function useAssistantChat(
                 ...(turnMode === "prompt"
                   ? { promptProposal: promptProposalFromComplete(event.data) }
                   : {}),
+                ...(turnMode === "ask"
+                  ? { nextSteps: event.data.next_steps ?? [] }
+                  : {}),
                 result: {
                   content: answer,
                   validated: event.data.validated === true,

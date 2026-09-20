@@ -157,7 +157,45 @@ describe("getNextSteps", () => {
     ).toEqual([]);
   });
 
-  it("offers nothing after an answer", () => {
+  it("offers nothing after an answer that suggested nothing", () => {
     expect(getNextSteps(message({ mode: "ask" }), t)).toEqual([]);
+  });
+
+  it("passes the answer's own suggestions through, capped at two", () => {
+    const steps = getNextSteps(
+      message({
+        mode: "ask",
+        nextSteps: [
+          {
+            label: "Write it",
+            mode: "component",
+            message: "Create a component that reads a CSV",
+          },
+          { label: "Ask more", mode: "ask", message: "How do I connect it?" },
+          { label: "Third", mode: "ask", message: "dropped" },
+        ],
+      }),
+      t,
+    );
+    expect(steps).toEqual([
+      {
+        id: "ask-0",
+        label: "Write it",
+        action: {
+          type: "prefill",
+          mode: "component",
+          text: "Create a component that reads a CSV",
+        },
+      },
+      {
+        id: "ask-1",
+        label: "Ask more",
+        action: {
+          type: "prefill",
+          mode: "ask",
+          text: "How do I connect it?",
+        },
+      },
+    ]);
   });
 });

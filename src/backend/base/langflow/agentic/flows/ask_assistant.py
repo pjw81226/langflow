@@ -97,6 +97,16 @@ asked for more.
 - End with "Source:" and markdown links (page title - section) using only URLs returned by the \
 tools. If no documentation was used, omit the line. Never invent a link.
 
+Next steps
+- After the Source line, when the answer leaves the user with something concrete to do in \
+Langflow, add one last block: a line of four backticks followed by the word next, then one or two \
+suggestion lines, then a line of four backticks.
+- A suggestion line is: label | tab | message. The label is at most four words. The tab is one of \
+component, prompt or ask. The message is the one sentence the user would send in that tab.
+- Write the label and the message in the language the user wrote in. Name the tab in English.
+- Leave the block out when the answer is a refusal, when you asked the user a question, or when \
+the next move is only clicking something on the canvas. Never put anything else in the block.
+
 """
     + CONTENT_POLICY
 )

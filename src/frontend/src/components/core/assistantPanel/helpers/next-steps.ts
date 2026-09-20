@@ -91,6 +91,16 @@ export function getNextSteps(
     ];
   }
 
+  // An answer's follow-ups are the agent's own: only it knows what the answer
+  // left the user with. The panel caps them and never sends one by itself.
+  if (message.mode === "ask") {
+    return (message.nextSteps ?? []).slice(0, 2).map((step, index) => ({
+      id: `ask-${index}`,
+      label: step.label,
+      action: { type: "prefill", mode: step.mode, text: step.message },
+    }));
+  }
+
   if (message.mode === "prompt" && message.promptProposal) {
     // No component to write into: the prompt can only be copied, so the open
     // question is where it goes.

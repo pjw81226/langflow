@@ -25,6 +25,15 @@ export interface AgenticTokenEvent {
   chunk: string;
 }
 
+/** One follow-up the Ask agent suggests: a button label, the tab it opens and
+ * the message it puts in the composer. Model-written, so the panel caps how
+ * many it shows and never sends one on its own. */
+export interface AgenticNextStep {
+  label: string;
+  mode: AssistantMode;
+  message: string;
+}
+
 export interface AgenticCompleteData {
   result: string;
   /** Component turns: the generated code passed validation. Missing = false. */
@@ -35,6 +44,9 @@ export interface AgenticCompleteData {
   test_result?: AgenticTestResult;
   /** Prompt turns: the instructions the assistant wrote. */
   prompt_proposal?: AgenticPromptProposal | null;
+  /** Ask turns: follow-ups the answer suggests, at most two. Each opens its
+   * tab with the message in the composer. */
+  next_steps?: AgenticNextStep[];
   class_name?: string;
   component_code?: string;
   validation_attempts?: number;
