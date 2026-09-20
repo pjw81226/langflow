@@ -19,6 +19,7 @@ import { AssistantMessageItem } from "./components/assistant-message";
 import { AssistantNoModelsState } from "./components/assistant-no-models-state";
 import type { PromptTargetChoice } from "./components/assistant-prompt-target-picker";
 import { AssistantStarterPrompts } from "./components/assistant-starter-prompts";
+import type { NextStepAction } from "./helpers/next-steps";
 import { useAssistantChat, useEnabledModels, useSessionHistory } from "./hooks";
 // Direct paths: tests mock the ./hooks barrel wholesale.
 import { purgeLegacyAssistantStorage } from "./hooks/legacy-storage";
@@ -61,6 +62,7 @@ interface AssistantInputWithScrollProps {
   onModeChange: (mode: AssistantMode) => void;
   onTestFlow: (model: AssistantModel | null) => void;
   promptTargetPicker?: PromptTargetChoice;
+  prefill?: { text: string; nonce: number };
 }
 
 function AssistantInputWithScroll({
@@ -76,6 +78,7 @@ function AssistantInputWithScroll({
   onModeChange,
   onTestFlow,
   promptTargetPicker,
+  prefill,
 }: AssistantInputWithScrollProps) {
   const { scrollToBottom } = useStickToBottomContext();
 
@@ -98,6 +101,7 @@ function AssistantInputWithScroll({
       onModeChange={onModeChange}
       onTestFlow={onTestFlow}
       promptTargetPicker={promptTargetPicker}
+      prefill={prefill}
       compact
     />
   );
@@ -283,6 +287,30 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
   // Starter prompts: what was picked, and whether the user has started typing.
   const [prefill, setPrefill] = useState<{ text: string; nonce: number }>();
   const [hasDraft, setHasDraft] = useState(draftMessageCache.length > 0);
+
+  // Follow-up suggestions under the last finished turn. A question step opens
+  // its tab and fills the composer, so the user still reads and sends it.
+  const latestAssistantId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.status === "complete") return msg.id;
+    }
+    return undefined;
+  }, [messages]);
+  const handleNextStep = useCallback(
+    (action: NextStepAction) => {
+      if (action.type === "test_flow") {
+        if (canRunActions) void handleTestFlow(null);
+        return;
+      }
+      setMode(action.mode);
+      setPrefill((prev) => ({
+        text: action.text,
+        nonce: (prev?.nonce ?? 0) + 1,
+      }));
+    },
+    [canRunActions, handleTestFlow, setMode],
+  );
 
   // Track if panel has ever shown messages (to keep expanded size after new session)
   useEffect(() => {
@@ -483,6 +511,8 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
                       ? handleOpenPlayground
                       : undefined
                   }
+                  showNextSteps={msg.id === latestAssistantId && !isProcessing}
+                  onNextStep={handleNextStep}
                 />
               ))}
             </StickToBottom.Content>
@@ -501,6 +531,7 @@ export function AssistantPanel({ isOpen, onClose }: AssistantPanelProps) {
               onModeChange={setMode}
               onTestFlow={handleAuthorizedTest}
               promptTargetPicker={promptTargetChoice}
+              prefill={prefill}
             />
           </StickToBottom>
         ) : (

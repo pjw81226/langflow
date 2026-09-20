@@ -6,8 +6,10 @@ import { CustomProfileIcon } from "@/customization/components/custom-profile-ico
 import { cn } from "@/utils/utils";
 import type { AssistantMessage } from "../assistant-panel.types";
 import { getRandomThinkingMessage } from "../helpers/messages";
+import { getNextSteps, type NextStepAction } from "../helpers/next-steps";
 import { AssistantMessageBody } from "./assistant-message-body";
 import { AssistantModelNotice } from "./assistant-model-notice";
+import { AssistantNextSteps } from "./assistant-next-steps";
 import { AssistantTestResult } from "./assistant-test-result";
 
 interface AssistantMessageItemProps {
@@ -28,6 +30,12 @@ interface AssistantMessageItemProps {
    */
   onTestFlow?: () => void;
   onOpenPlayground?: () => void;
+  /**
+   * Follow-up suggestions. Only the last finished turn offers them: an older
+   * one would point at work the user has moved past.
+   */
+  showNextSteps?: boolean;
+  onNextStep?: (action: NextStepAction) => void;
 }
 
 // Steps where AssistantLoadingState replaces the simple thinking dots.
@@ -69,10 +77,17 @@ export function AssistantMessageItem({
   onAcknowledgeValidation,
   onTestFlow,
   onOpenPlayground,
+  showNextSteps,
+  onNextStep,
 }: AssistantMessageItemProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
+
+  const nextSteps = useMemo(
+    () => (showNextSteps && onNextStep ? getNextSteps(message, t) : []),
+    [showNextSteps, onNextStep, message, t],
+  );
 
   // Randomized once per message.
   const randomThinking = useMemo(() => getRandomThinkingMessage(), []);
@@ -182,6 +197,12 @@ export function AssistantMessageItem({
               result={message.testResult}
               onTestAgain={onTestFlow}
               onOpenPlayground={onOpenPlayground}
+            />
+          )}
+          {!isUser && onNextStep && (
+            <AssistantNextSteps
+              steps={nextSteps}
+              onSelect={(step) => onNextStep(step.action)}
             />
           )}
         </div>
