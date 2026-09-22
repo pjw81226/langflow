@@ -127,3 +127,51 @@ class TestFlowSummaryHardCap:
 
         # Under-cap summaries must be byte-identical: no truncation marker, no clipping.
         assert result == small_summary
+
+
+async def test_saved_interview_is_included_without_truncating_confirmed_rules(monkeypatch):
+    owner = uuid4()
+    opportunity = {
+        "id": "job",
+        "title": "검사 보고",
+        "description": "매일 정리",
+        "input": "메일",
+        "output": "보고 표",
+        "review": "원문 확인",
+        "rules": [{"text": "불량률 2% 이상 표시", "source": "suggested"}],
+        "steps": [
+            {
+                "id": str(i),
+                "label": f"단계 {i}",
+                "description": "자료 확인",
+                "kind": "action",
+                "actor": "ai",
+                "node_ids": [],
+            }
+            for i in range(3)
+        ],
+        "edges": [],
+    }
+    data = {
+        "nodes": [],
+        "edges": [],
+        "work_interview": {
+            "version": 1,
+            "answers": {"role": "품질", "task": "보고", "sources": [], "process": "가" * 3000, "output": "표"},
+            "opportunity": opportunity,
+            "confirmed_suggested_rules": ["불량률 2% 이상 표시"],
+        },
+    }
+    _patch_session(monkeypatch, _FakeFlow(user_id=owner, data=data))
+    monkeypatch.setattr(assistant_service, "init_working_flow", lambda *_a, **_k: None)
+    result = await assistant_service._get_current_flow_summary(str(uuid4()), user_id=str(owner))
+    assert result is not None
+    assert "불량률 2% 이상 표시" in result
+    assert "가" * 3000 in result
+
+
+def test_unconfirmed_or_invalid_saved_interviews_are_not_passed_to_builder():
+    from langflow.agentic.services.interview_context import saved_interview_context
+
+    assert saved_interview_context({"work_interview": {"version": 1, "opportunity": {}}}) is None
+    assert saved_interview_context({}) is None

@@ -319,6 +319,13 @@ async def _get_current_flow_summary(flow_id: str | None, *, user_id: str | None 
             # LLM turn (cost explosion) — safety net over flow_to_spec_summary's terseness.
             if summary and len(summary) > MAX_CANVAS_SUMMARY_CHARS:
                 summary = summary[:MAX_CANVAS_SUMMARY_CHARS] + "\n... [truncated]"
+            # Keep the reviewed job outside the canvas summary's 2k truncation:
+            # clipping a threshold or exception changes the approved behavior.
+            from langflow.agentic.services.interview_context import saved_interview_context
+
+            interview = saved_interview_context(flow.data)
+            if interview:
+                summary = "\n\n".join(part for part in (summary, interview) if part)
             return summary
     except Exception as exc:  # noqa: BLE001
         # Why: best-effort context loader on the critical chat path — any
@@ -732,6 +739,9 @@ async def execute_flow_with_validation_streaming(
     # Canvas is read ONCE (seeds the working flow; reused for intent context
     # and the [Current flow on canvas] prefix — a second read costs a DB trip).
     current_flow_summary = await _get_current_flow_summary(global_variables.get("FLOW_ID"), user_id=user_id)
+    # Interview drafts are reviewed before the user supplies sample material.
+    # Capture this before build_flow replaces the working graph's data.
+    is_interview_flow = bool((get_working_flow() or {}).get("data", {}).get("work_interview"))
 
     # Recent turns + canvas state route follow-up edits to build_flow instead of
     # question/off_topic; same turn budget as the main prompt (honors /history N).
@@ -1395,7 +1405,7 @@ async def execute_flow_with_validation_streaming(
                 # delivered with an honest caveat instead of as a confident
                 # success. Skipped (returns None) when the kill switch is
                 # off / no FLOW_ID / empty canvas → unchanged behavior.
-                if is_flow_request and saw_set_flow:
+                if is_flow_request and saw_set_flow and not is_interview_flow:
                     verification, shape_before = await _verify_flow_before_delivery(
                         flow_filename=flow_filename,
                         global_variables=global_variables,

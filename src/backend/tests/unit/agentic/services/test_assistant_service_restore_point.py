@@ -61,6 +61,22 @@ async def _run_stream(*, intent, restore_mock, drain_side_effect=None, input_val
 
 class TestRestorePointCreation:
     @pytest.mark.asyncio
+    async def test_interview_drafts_are_proposed_without_automatic_execution(self):
+        with (
+            patch(f"{MODULE}.get_working_flow", return_value={"data": {"work_interview": {"version": 1}}}),
+            patch(f"{MODULE}._verify_flow_before_delivery", new_callable=AsyncMock) as verify,
+        ):
+            events = await _run_stream(
+                intent="build_flow",
+                restore_mock=AsyncMock(return_value=None),
+                drain_side_effect=[[{"action": "set_flow", "data": {"nodes": [], "edges": []}}]] + [[]] * 10,
+                input_value="저장된 업무 인터뷰로 초안을 제안해주세요. 자동 실행하지 마세요.",
+            )
+        verify.assert_not_awaited()
+        parsed = _parse_events(events)
+        assert any(p.get("step") == "flow_proposal_ready" for p in parsed)
+
+    @pytest.mark.asyncio
     async def test_should_create_restore_point_for_build_flow_intent(self):
         restore_mock = AsyncMock(return_value="version-abc")
         events = await _run_stream(

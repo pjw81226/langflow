@@ -235,6 +235,31 @@ describe("useFlowStore", () => {
   });
 
   describe("initial state", () => {
+    it("preserves confirmed work interview metadata when the canvas changes", () => {
+      const metadata = { version: 1, summary: "매일 보고 정리" };
+      useFlowStore.setState({
+        currentFlow: {
+          id: "interview-flow",
+          name: "보고 정리",
+          description: "",
+          data: {
+            nodes: [],
+            edges: [],
+            viewport: { x: 0, y: 0, zoom: 1 },
+            work_interview: metadata,
+          },
+        } as never,
+      });
+      useFlowStore.getState().updateCurrentFlow({ nodes: [], edges: [] });
+      expect(
+        (
+          useFlowStore.getState().currentFlow?.data as unknown as {
+            work_interview: unknown;
+          }
+        ).work_interview,
+      ).toEqual(metadata);
+    });
+
     it("should initialize with correct default values", () => {
       const { result } = renderHook(() => useFlowStore());
 

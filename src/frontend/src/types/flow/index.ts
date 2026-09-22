@@ -1,4 +1,5 @@
 import type { Edge, Node, ReactFlowJsonObject } from "@xyflow/react";
+import type { WorkInterviewMetadata } from "@/components/core/workInterview/types";
 import type { BuildStatus } from "../../constants/enums";
 import type { APIClassType, OutputFieldType } from "../api/index";
 
@@ -13,7 +14,11 @@ export type PaginatedFlowsType = {
 export type FlowType = {
   name: string;
   id: string;
-  data: ReactFlowJsonObject<AllNodeType, EdgeType> | null;
+  data:
+    | (ReactFlowJsonObject<AllNodeType, EdgeType> & {
+        work_interview?: WorkInterviewMetadata;
+      })
+    | null;
   description: string;
   endpoint_name?: string | null;
   style?: FlowStyleType;
