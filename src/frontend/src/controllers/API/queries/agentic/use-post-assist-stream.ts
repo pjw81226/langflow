@@ -110,7 +110,15 @@ export async function postAssistStream(
 
     try {
       const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      const detail: unknown = errorJson.detail || errorJson.message;
+      if (typeof detail === "string") errorMessage = detail;
+      else if (Array.isArray(detail)) {
+        errorMessage =
+          detail
+            .map((item) => (typeof item?.msg === "string" ? item.msg : ""))
+            .filter(Boolean)
+            .join("; ") || errorMessage;
+      }
     } catch {
       // Error response is plain text, not JSON - use as-is
       errorMessage = errorText || errorMessage;

@@ -371,6 +371,22 @@ describe("buffer handling", () => {
 });
 
 describe("error responses", () => {
+  it("converts validation arrays to safe text instead of passing objects to React", async () => {
+    mockFetch.mockResolvedValue(
+      createMockResponse(
+        422,
+        [],
+        JSON.stringify({
+          detail: [{ msg: "Message too long", input: "private input" }],
+        }),
+      ),
+    );
+    const onError = jest.fn();
+    await postAssistStream({ flow_id: "f1", input_value: "" }, { onError });
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Message too long" }),
+    );
+  });
   it("should call onError with JSON detail for non-200", async () => {
     mockFetch.mockResolvedValue(
       createMockResponse(400, [], JSON.stringify({ detail: "Bad request" })),
