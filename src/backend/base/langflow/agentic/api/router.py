@@ -27,7 +27,12 @@ from lfx.services.model_provider_policy import ModelProviderPolicyPurpose
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from langflow.agentic.api.deps import require_agentic_experience
-from langflow.agentic.api.schemas import AssistantRequest, HeadlessAssistantRequest
+from langflow.agentic.api.schemas import (
+    AssistantRequest,
+    HeadlessAssistantRequest,
+    InterviewRequest,
+    InterviewResponse,
+)
 from langflow.agentic.helpers.sse import format_complete_event, format_error_event
 from langflow.agentic.services.assistant_service import (
     execute_flow_with_validation,
@@ -38,6 +43,7 @@ from langflow.agentic.services.flow_types import (
     LANGFLOW_ASSISTANT_FLOW,
     MAX_VALIDATION_RETRIES,
 )
+from langflow.agentic.services.interview_service import InterviewGenerationError, generate_interview_response
 from langflow.agentic.services.provider_service import (
     PREFERRED_PROVIDERS,
     build_live_only_provider_entries,
@@ -64,7 +70,7 @@ class _AssistantContext:
 
 
 async def _resolve_assistant_context(
-    request: AssistantRequest,
+    request: AssistantRequest | InterviewRequest,
     user_id: UUID,
     session: AsyncSession,
 ) -> _AssistantContext:
@@ -135,14 +141,16 @@ async def _resolve_assistant_context(
 
     # Seeded here (not per-endpoint) so /assist and /execute/{flow_name}
     # honor the budget the same way /assist/stream does.
-    if request.iterations_limit is not None:
-        global_vars["ITERATIONS_LIMIT"] = str(request.iterations_limit)
+    iterations_limit = getattr(request, "iterations_limit", None)
+    if iterations_limit is not None:
+        global_vars["ITERATIONS_LIMIT"] = str(iterations_limit)
 
     # Inject all provider variables into the global context
     global_vars.update(provider_vars)
 
-    session_id = request.session_id or str(uuid.uuid4())
-    max_retries = request.max_retries if request.max_retries is not None else MAX_VALIDATION_RETRIES
+    session_id = getattr(request, "session_id", None) or str(uuid.uuid4())
+    request_max_retries = getattr(request, "max_retries", None)
+    max_retries = request_max_retries if request_max_retries is not None else MAX_VALIDATION_RETRIES
 
     return _AssistantContext(
         provider=provider,
@@ -176,6 +184,43 @@ async def _validate_flow_access(flow_id: str | None, user_id: UUID, session: Asy
     if flow is None or (flow.user_id is not None and str(flow.user_id) != str(user_id)):
         raise HTTPException(status_code=404, detail="Flow not found.")
     return flow
+
+
+@router.post(
+    "/interview",
+    dependencies=[Depends(require_agentic_experience)],
+)
+async def interview(
+    request: InterviewRequest,
+    current_user: CurrentActiveUser,
+    session: DbSession,
+) -> InterviewResponse:
+    """Run one bounded, read-only work-interview turn."""
+    flow = await _validate_flow_access(request.flow_id, current_user.id, session)
+    with scoped_model_provider_policy_for_flow(
+        flow,
+        user_id=current_user.id,
+        is_superuser=bool(current_user.is_superuser),
+    ):
+        ctx = await _resolve_assistant_context(request, current_user.id, session)
+
+        # Keep the stored graph in memory, then release the request transaction
+        # before waiting on the provider. The service never mutates the graph.
+        graph_data = flow.data if flow is not None else None
+        await release_db_transaction(session)
+
+        try:
+            return await generate_interview_response(
+                request,
+                user_id=current_user.id,
+                provider=ctx.provider,
+                model_name=ctx.model_name,
+                api_key_name=ctx.api_key_name,
+                provider_variables=ctx.global_vars,
+                graph_data=graph_data,
+            )
+        except InterviewGenerationError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from None
 
 
 @router.post("/execute/{flow_name}", dependencies=[Depends(require_agentic_experience)])

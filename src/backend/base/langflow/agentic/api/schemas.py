@@ -1,9 +1,9 @@
 """Request and response schemas for the Assistant API."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from lfx.services.deps import get_settings_service
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # All possible step types for SSE progress events
 StepType = Literal[
@@ -82,6 +82,106 @@ class HeadlessAssistantRequest(BaseModel):
     def check_instruction_length(cls, value: str) -> str:
         _reject_overlong_message(value)
         return value
+
+
+class _InterviewModel(BaseModel):
+    """Strict, bounded base for work-interview wire models."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class InterviewAnswers(_InterviewModel):
+    role: str = Field(max_length=500)
+    task: str = Field(max_length=1000)
+    sources: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8)
+    process: str = Field(max_length=4000)
+    output: str = Field(max_length=1000)
+    frequency: str | None = Field(default=None, max_length=500)
+
+
+class InterviewRule(_InterviewModel):
+    text: str = Field(min_length=1, max_length=1000)
+    source: Literal["user", "suggested"]
+
+
+class InterviewStep(_InterviewModel):
+    id: str = Field(min_length=1, max_length=100)
+    label: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=1000)
+    kind: Literal["input", "action", "decision", "output", "human"]
+    actor: Literal["user", "ai"]
+    node_ids: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8)
+
+    @model_validator(mode="after")
+    def remove_node_ids_from_human_steps(self):
+        if self.kind == "human":
+            self.node_ids = []
+        return self
+
+
+class InterviewEdge(_InterviewModel):
+    source: str = Field(min_length=1, max_length=100)
+    target: str = Field(min_length=1, max_length=100)
+    label: str = Field(max_length=200)
+
+
+class WorkOpportunity(_InterviewModel):
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=2000)
+    input: str = Field(min_length=1, max_length=1000)
+    output: str = Field(min_length=1, max_length=1000)
+    review: str = Field(min_length=1, max_length=1000)
+    rules: list[InterviewRule] = Field(max_length=12)
+    steps: list[InterviewStep] = Field(min_length=3, max_length=6)
+    edges: list[InterviewEdge] = Field(max_length=12)
+
+    @model_validator(mode="after")
+    def validate_graph_shape(self):
+        step_ids = [step.id for step in self.steps]
+        if len(step_ids) != len(set(step_ids)):
+            msg = "Opportunity step ids must be unique."
+            raise ValueError(msg)
+        unknown = {
+            endpoint
+            for edge in self.edges
+            for endpoint in (edge.source, edge.target)
+            if endpoint not in step_ids
+        }
+        if unknown:
+            msg = f"Opportunity edges reference an unknown step: {', '.join(sorted(unknown))}."
+            raise ValueError(msg)
+        return self
+
+
+class InterviewFollowUpAnswer(_InterviewModel):
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=2000)
+
+
+class InterviewRequest(_InterviewModel):
+    flow_id: str = Field(min_length=1, max_length=100)
+    stage: Literal["examples", "recommend", "refine", "explain"]
+    answers: InterviewAnswers
+    follow_up_answers: list[InterviewFollowUpAnswer] | None = Field(default=None, max_length=2)
+    opportunity: WorkOpportunity | None = None
+    feedback: str | None = Field(default=None, max_length=4000)
+    provider: str | None = Field(default=None, max_length=100)
+    model_name: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_stage_inputs(self):
+        if self.stage in {"refine", "explain"} and self.opportunity is None:
+            msg = f"opportunity is required for the {self.stage} stage."
+            raise ValueError(msg)
+        return self
+
+
+class InterviewResponse(_InterviewModel):
+    summary: str = Field(max_length=2000)
+    examples: list[Annotated[str, Field(max_length=500)]] = Field(max_length=6)
+    follow_up_questions: list[Annotated[str, Field(max_length=500)]] = Field(max_length=2)
+    opportunities: list[WorkOpportunity] = Field(max_length=3)
 
 
 class ValidationResult(BaseModel):
