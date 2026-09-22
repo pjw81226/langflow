@@ -30,6 +30,10 @@ import {
 import { FlowBuilderWelcomeMount } from "@/components/core/flowBuilderWelcome/flow-builder-welcome-mount";
 import FlowToolbar from "@/components/core/flowToolbarComponent";
 import {
+  WorkInterviewGuide,
+  WorkInterviewRestore,
+} from "@/components/core/workInterview/work-interview-guide";
+import {
   NOTE_NODE_MIN_HEIGHT,
   NOTE_NODE_MIN_WIDTH,
 } from "@/constants/constants";
@@ -1146,6 +1150,12 @@ export default function Page({
                 ``flowBuilderWelcomeStore`` which is primed by the
                 "New Flow" button on the home page. */}
             {!effectiveLocked && <FlowBuilderWelcomeMount />}
+            {!effectiveLocked && !isPreviewActive && (
+              <>
+                <WorkInterviewRestore />
+                <WorkInterviewGuide />
+              </>
+            )}
           </div>
         </>
       ) : (
